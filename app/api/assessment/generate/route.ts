@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { AssessmentResponse } from "@/types/types";
+import { PLAN_INSTRUCTIONS } from "@/prompts/plan_instructions";
 
 export const runtime = "edge";
 export const maxDuration = 300;
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
     const threadId = (await openai.beta.threads.create()).id;
 
     // Create message with structured prompt
-    const prompt = `Please generate a development plan for provided user profile. and assessment results.
+    const prompt = `Generate a comprehensive professional development plan following this structured format. The plan should be specific, actionable, and deeply personalized.
     here is the user profile: ${JSON.stringify(userInfo)}
     here is the assessment results: ${JSON.stringify(assessmentAnswers)}
     here is the responsibility level: ${JSON.stringify(responsibilityLevel)}
@@ -64,8 +65,7 @@ export async function POST(request: Request) {
 
     const run = await openai.beta.threads.runs.create(threadId, {
       assistant_id,
-      instructions:
-        "Generate a clear, actionable development plan. Focus on specific skills, behaviors, and learning opportunities.",
+      instructions: PLAN_INSTRUCTIONS,
     });
 
     // Poll for completion
