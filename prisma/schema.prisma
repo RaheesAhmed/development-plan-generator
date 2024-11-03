@@ -8,7 +8,7 @@ datasource db {
 }
 
 model User {
-  id             String       @id @default(cuid())
+  id             String       @id @default(cuid()) @map("_id")
   email          String?      @unique
   hashedPassword String?     @map("password")
   name           String?
@@ -22,14 +22,14 @@ model User {
 }
 
 model Profile {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id])
   // Add other demographic fields here
 }
 
 model Assessment {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   updatedAt DateTime @updatedAt
