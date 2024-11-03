@@ -39,6 +39,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
 
 interface User {
   id: string;
@@ -62,6 +63,7 @@ interface User {
 }
 
 export default function AdminDashboard() {
+  const router = useRouter();
   const [activeView, setActiveView] = useState("overview");
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,36 +71,43 @@ export default function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      toast({
-        title: "Error",
-        description: "Please login to access the admin dashboard",
-        variant: "destructive",
-      });
-      window.location.href = "/login";
-      return;
-    }
-
     try {
-      const tokenData = JSON.parse(atob(token.split(".")[1]));
-      if (!tokenData.isAdmin) {
-        toast({
-          title: "Error",
-          description: "You don't have admin privileges",
-          variant: "destructive",
-        });
-        window.location.href = "/";
-        return;
+      if (typeof window !== "undefined") {
+        const token = localStorage.getItem("token");
+        if (!token) {
+          toast({
+            title: "Error",
+            description: "Please login to access the admin dashboard",
+            variant: "destructive",
+          });
+          router.push("/login");
+          return;
+        }
+
+        try {
+          const tokenData = JSON.parse(atob(token.split(".")[1]));
+          if (!tokenData.isAdmin) {
+            toast({
+              title: "Error",
+              description: "You don't have admin privileges",
+              variant: "destructive",
+            });
+            router.push("/");
+            return;
+          }
+        } catch (error) {
+          localStorage.removeItem("token");
+          router.push("/login");
+          return;
+        }
+
+        fetchUsers();
       }
     } catch (error) {
-      localStorage.removeItem("token");
-      window.location.href = "/login";
-      return;
+      console.error("Error accessing localStorage:", error);
+      router.push("/login");
     }
-
-    fetchUsers();
-  }, []);
+  }, [router]);
 
   const fetchUsers = async () => {
     try {
@@ -113,7 +122,7 @@ export default function AdminDashboard() {
       if (!response.ok) {
         if (response.status === 401) {
           localStorage.removeItem("token");
-          window.location.href = "/login";
+          router.push("/login");
           return;
         }
         throw new Error(await response.text());
