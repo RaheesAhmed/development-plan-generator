@@ -69,45 +69,45 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      toast({
+        title: "Error",
+        description: "Please login to access the admin dashboard",
+        variant: "destructive",
+      });
+      router.push("/login");
+      return;
+    }
+
     try {
-      if (typeof window !== "undefined") {
-        const token = localStorage.getItem("token");
-        if (!token) {
-          toast({
-            title: "Error",
-            description: "Please login to access the admin dashboard",
-            variant: "destructive",
-          });
-          router.push("/login");
-          return;
-        }
-
-        try {
-          const tokenData = JSON.parse(atob(token.split(".")[1]));
-          if (!tokenData.isAdmin) {
-            toast({
-              title: "Error",
-              description: "You don't have admin privileges",
-              variant: "destructive",
-            });
-            router.push("/");
-            return;
-          }
-        } catch (error) {
-          localStorage.removeItem("token");
-          router.push("/login");
-          return;
-        }
-
-        fetchUsers();
+      const tokenData = JSON.parse(atob(token.split(".")[1]));
+      if (!tokenData.isAdmin) {
+        toast({
+          title: "Error",
+          description: "You don't have admin privileges",
+          variant: "destructive",
+        });
+        router.push("/");
+        return;
       }
     } catch (error) {
-      console.error("Error accessing localStorage:", error);
+      localStorage.removeItem("token");
       router.push("/login");
+      return;
     }
-  }, [router]);
+
+    fetchUsers();
+  }, [router, mounted]);
 
   const fetchUsers = async () => {
     try {
