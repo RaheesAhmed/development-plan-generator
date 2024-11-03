@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
 import { classifyResponsibilityLevel } from "@/lib/classifiers/responsibility-level";
 import { demographicSchema } from "@/lib/validators/demographics";
 import { classifierService } from "@/lib/services/classifier-service";
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
 
 export const maxDuration = 30;
 
@@ -36,39 +38,69 @@ export async function POST(request: Request) {
 
     const processedInfo = {
       ...data,
-      directReports: parseInt(data.directReports, 10),
-      levelsToCEO: parseInt(data.levelsToCEO, 10),
+      directReports: data.directReports.toString(),
+      levelsToCEO: data.levelsToCEO.toString(),
+      companySize: data.companySize.toString(),
+      managesBudget: data.managesBudget.toString(),
     };
 
-    // Classify responsibility level
     const responsibilityLevel = await classifyResponsibilityLevel(
       processedInfo
     );
 
-    console.log("responsibilityLevel", responsibilityLevel);
+    const user = await prisma.user.upsert({
+      where: {
+        email: data.email || "default@example.com",
+      },
+      update: {},
+      create: {
+        email: data.email || "default@example.com",
+        hashedPassword: "temporary-hash",
+        name: data.name || "Anonymous",
+      },
+    });
 
-    // // Create assessment record
-    // const assessment = await prisma.assessment.create({
-    //   data: {
-    //     userId: "anonymous",
-    //     status: "draft",
-    //     viewedBackground: false,
-    //     demographics: value,
-    //     responsibilityLevel: responsibilityLevel.role,
-    //     capabilities: {},
-    //   },
-    // });
+    const savedDemographic = await prisma.demographic.create({
+      data: {
+        industry: data.industry,
+        companySize: processedInfo.companySize,
+        department: data.department,
+        jobTitle: data.jobTitle,
+        directReports: processedInfo.directReports,
+        decisionLevel: data.decisionLevel,
+        typicalProject: data.typicalProject,
+        levelsToCEO: processedInfo.levelsToCEO,
+        managesBudget: processedInfo.managesBudget,
+        user: {
+          connect: { id: user.id },
+        },
+      },
+    });
+
+    const assessment = await prisma.assessment.create({
+      data: {
+        user: {
+          connect: { id: user.id },
+        },
+        responsibilityLevel: JSON.stringify({
+          level: responsibilityLevel.level,
+          role: responsibilityLevel.role,
+          description: responsibilityLevel.description,
+        }),
+      },
+    });
+
+    console.log("responsibilityLevel", responsibilityLevel);
 
     return NextResponse.json({
       success: true,
       data: {
-        // assessmentId: assessment.id,
         responsibilityLevel: responsibilityLevel.level,
         role: responsibilityLevel.role,
         description: responsibilityLevel.description,
         versionInfo: responsibilityLevel.versionInfo,
-        // demographics: assessment.demographics,
         nextStep: "background",
+        assessmentId: assessment.id,
       },
     });
   } catch (error) {
@@ -81,5 +113,7 @@ export async function POST(request: Request) {
       },
       { status: 500 }
     );
+  } finally {
+    await prisma.$disconnect();
   }
 }

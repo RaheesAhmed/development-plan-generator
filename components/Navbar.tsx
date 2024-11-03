@@ -1,12 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { UserButton, useUser } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 export default function Navbar() {
-  const { isLoaded, isSignedIn, user } = useUser();
+  const router = useRouter();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  const handleLogin = () => {
+    // Here you would typically handle your authentication logic
+    setIsLoggedIn(true);
+    router.push("/dashboard");
+  };
 
   return (
     <nav className="border-b bg-background">
@@ -19,31 +26,22 @@ export default function Navbar() {
           </div>
 
           <div className="flex items-center space-x-4">
-            {!isLoaded ? (
-              <div className="flex items-center space-x-4">
-                <Skeleton className="h-8 w-24" />
-                <Skeleton className="h-8 w-8 rounded-full" />
-              </div>
-            ) : isSignedIn ? (
+            {!isLoggedIn ? (
               <>
-                <span className="text-sm text-muted-foreground">
-                  Welcome,{" "}
-                  {user.firstName || user.emailAddresses[0].emailAddress}
-                </span>
-                <Link href="/dashboard">
-                  <Button variant="ghost">Dashboard</Button>
-                </Link>
-                <UserButton afterSignOutUrl="/" />
+                <Button variant="ghost" onClick={handleLogin}>
+                  Login
+                </Button>
+                <Button onClick={handleLogin}>Sign up</Button>
               </>
             ) : (
-              <>
-                <Link href="/sign-in">
-                  <Button variant="ghost">Sign in</Button>
-                </Link>
-                <Link href="/sign-up">
-                  <Button>Sign up</Button>
-                </Link>
-              </>
+              <div className="flex items-center space-x-4">
+                <span className="text-sm text-muted-foreground">
+                  Welcome,{" "}
+                  <Link href="/dashboard">
+                    <Button variant="ghost">Dashboard</Button>
+                  </Link>
+                </span>
+              </div>
             )}
           </div>
         </div>

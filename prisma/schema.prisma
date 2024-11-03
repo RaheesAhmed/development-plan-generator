@@ -1,261 +1,47 @@
 generator client {
   provider = "prisma-client-js"
-  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
-}
-
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider = "mongodb"
+  url      = env("MONGO_URI")
 }
 
 model User {
-  id                    String                @id @default(cuid())
-  name                  String?
-  email                 String?               @unique
-  emailVerified        DateTime?
-  image                 String?
-  accounts              Account[]
-  sessions              Session[]
-  assessments           Assessment[]
-  assessmentSubmissions AssessmentSubmission[]
-  multiRaterAssessments MultiRaterAssessment[] @relation("PrimaryUser")
-  consultantProfile     Consultant?
-  clientOf             ConsultantClient[]
-  analyticsEvents      AnalyticsEvent[]
-  company              Company?               @relation(fields: [companyId], references: [id])
-  companyId            String?
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  email          String       @unique
+  hashedPassword String       @map("password")
+  name           String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  assessments    Assessment[]
+  demographics   Demographic?
+}
 
-  @@index([companyId])
+model Demographic {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  industry       String
+  companySize    String
+  department     String
+  jobTitle       String
+  directReports  String
+  decisionLevel  String
+  typicalProject String
+  levelsToCEO    String
+  managesBudget  String
+  userId         String    @unique @db.ObjectId
+  user           User      @relation(fields: [userId], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
 model Assessment {
-  id                    String               @id @default(cuid())
-  userId                String
-  threadId              String
-  demographics          Json
-  status                String
-  responsibilityLevel   String?
-  developmentPlan       Json?
-  user                  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  // Add the relation fields
-  capabilityResponses   CapabilityResponse[]
-  developmentPlanDetails DevelopmentPlan?
-  multiRaterAssessment  MultiRaterAssessment?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([userId])
-}
-
-enum UserRole {
-  USER
-  ADMIN
-  CONSULTANT
-}
-
-model CapabilityResponse {
-  id            String    @id @default(cuid())
-  assessmentId  String
-  assessment    Assessment @relation(fields: [assessmentId], references: [id])
-  capability    String    // e.g., "Building Teams"
-  skillRating   Int       // 1-5
-  confidenceRating Int    // 1-5
-  focusAreas    Json      // Array of focus area responses
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-}
-
-model DevelopmentPlan {
-  id            String    @id @default(cuid())
-  assessmentId  String    @unique
-  assessment    Assessment @relation(fields: [assessmentId], references: [id])
-  executiveSummary String @db.Text
-  strengthsAnalysis Json
-  areasForImprovement Json
-  recommendations Json
-  actionPlan     Json?
-  resources      Json?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-}
-
-model AssessmentSubmission {
-  id        String   @id @default(cuid())
-  userId    String
-  timeSpent Int
-  createdAt DateTime @default(now())
-  responses AssessmentResponse[]
-  user      User     @relation(fields: [userId], references: [id])
-
-  @@index([userId])
-}
-
-model AssessmentResponse {
-  id                String              @id @default(cuid())
-  submissionId      String
-  questionId        String
-  rating           Int
-  response         String              @db.Text
-  reflectionRating Int
-  reflection       String              @db.Text
-  submission       AssessmentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  question         Question            @relation(fields: [questionId], references: [id])
-
-  @@index([submissionId])
-  @@index([questionId])
-}
-
-// New models for multi-rater assessments
-model MultiRaterAssessment {
-  id            String      @id @default(cuid())
-  assessmentId  String      @unique
-  primaryUserId String
-  status        String      @default("pending")
-  dueDate       DateTime
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  assessment    Assessment  @relation(fields: [assessmentId], references: [id])
-  primaryUser   User       @relation("PrimaryUser", fields: [primaryUserId], references: [id])
-  raters        Rater[]
-}
-
-model Rater {
-  id            String      @id @default(cuid())
-  assessmentId  String
-  email         String
-  relationship  String      // peer, manager, direct_report, self
-  status        String      @default("invited")
-  completedAt   DateTime?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  assessment    MultiRaterAssessment @relation(fields: [assessmentId], references: [id])
-}
-
-// Consultant management models
-model Consultant {
-  id              String    @id @default(cuid())
-  userId          String    @unique
-  name            String
-  company         String
-  apiKey          String    @unique
-  whitelabelConfig Json
-  revenueShare    Float     @default(0.7)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  user            User      @relation(fields: [userId], references: [id])
-  clients         ConsultantClient[]
-}
-
-model ConsultantClient {
-  id            String    @id @default(cuid())
-  consultantId  String
-  clientId      String
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  consultant    Consultant @relation(fields: [consultantId], references: [id])
-  client        User      @relation(fields: [clientId], references: [id])
-}
-
-// Corporate subscription models
-model CorporateSubscription {
-  id              String    @id @default(cuid())
-  companyId       String    @unique
-  plan            String    // basic, professional, enterprise
-  features        Json      // Array of enabled features
-  maxUsers        Int
-  apiAccess       Boolean   @default(false)
-  analyticsAccess Boolean   @default(false)
-  startDate       DateTime  @default(now())
-  endDate         DateTime
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  company         Company   @relation(fields: [companyId], references: [id])
-}
-
-model Company {
-  id                String                @id @default(cuid())
-  name              String
-  domain            String                @unique
-  subscription      CorporateSubscription?
-  createdAt         DateTime              @default(now())
-  updatedAt         DateTime              @updatedAt
-  users             User[]
-  analyticsEvents   AnalyticsEvent[]      // Add missing relation
-}
-
-// Partner integration models
-model PartnerIntegration {
-  id            String    @id @default(cuid())
-  partnerId     String
-  partnerType   String    // hris, lms, performance
-  apiConfig     Json
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  partner       Partner   @relation(fields: [partnerId], references: [id])
-}
-
-model Partner {
-  id            String               @id @default(cuid())
-  name          String
-  type          String    // software_vendor, consulting_firm, etc.
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
-  integrations  PartnerIntegration[]
-}
-
-// Analytics models
-model AnalyticsEvent {
-  id            String    @id @default(cuid())
-  companyId     String?
-  userId        String?
-  eventType     String
-  eventData     Json
-  createdAt     DateTime  @default(now())
-  company       Company?  @relation(fields: [companyId], references: [id])
-  user          User?     @relation(fields: [userId], references: [id])
-}
-
-model Question {
-  id              String    @id @default(cuid())
-  level           Int
-  category        String    // e.g., "Building Teams", "Leadership", etc.
-  type            String    // "rating", "reflection", etc.
-  text            String    @db.Text
-  description     String?   @db.Text
-  options         Json?     // For questions with predefined options
-  responses       AssessmentResponse[]
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  @@index([level, category])
-}
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId             String    @db.ObjectId
+  user               User      @relation(fields: [userId], references: [id])
+  responsibilityLevel Json     @map("responsibility_level")
+  assessmentAnswers  Json?     @map("assessment_answers")
+  generatedPlan      Json?     @map("generated_plan")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+} 

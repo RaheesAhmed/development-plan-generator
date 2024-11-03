@@ -1,33 +1,30 @@
 import { promises as fs } from "fs";
 import path from "path";
+
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export let capabilityAreas: any,
-  responsibilityLevelsData: any,
-  levelOneQuestions: any,
-  levelTwoQuestions: any,
-  cellDefinitions: any;
+const dataDir = path.join(__dirname, "../data");
+
+export let responsibilityLevelsData: any = null;
+export let levelOneQuestions: any[] = [];
+export let levelTwoQuestions: any[] = [];
+
+let isDataLoaded = false;
 
 export async function loadData() {
   try {
-    [
-      capabilityAreas,
-      responsibilityLevelsData,
-      levelOneQuestions,
-      levelTwoQuestions,
-      cellDefinitions,
-    ] = await Promise.all([
-      readJSONFile("framework.json"),
-      readResponsibilityLevelsData(),
-      readLevelOneQuestions(),
-      readLevelTwoQuestions(),
-      readCellDefinitions(),
-    ]);
+    [responsibilityLevelsData, levelOneQuestions, levelTwoQuestions] =
+      await Promise.all([
+        readResponsibilityLevelsData(),
+        readLevelOneQuestions(),
+        readLevelTwoQuestions(),
+      ]);
 
-    //console.log("Loaded level one questions:", levelOneQuestions.length);
+    console.log("Loaded level one questions:", levelOneQuestions.length);
+    console.log("Loaded level two questions:", levelTwoQuestions.length);
 
     if (!responsibilityLevelsData || responsibilityLevelsData.length === 0) {
       throw new Error(
@@ -35,7 +32,7 @@ export async function loadData() {
       );
     }
 
-    preprocessCapabilityAreas();
+    isDataLoaded = true;
   } catch (error) {
     console.error("Error loading data:", error);
     throw error;
@@ -43,29 +40,21 @@ export async function loadData() {
 }
 
 async function readJSONFile(filename: string) {
-  const filePath = path.join(__dirname, "../data", filename);
+  const filePath = path.join(dataDir, filename);
   const rawData = await fs.readFile(filePath, "utf8");
   return JSON.parse(rawData);
 }
 
 export async function readResponsibilityLevelsData() {
   const data = await readJSONFile("responsibility_level.json");
-
   return data;
 }
 
 export async function readLevelOneQuestions() {
-  const questions = await readJSONFile("ask_questions.json");
+  const questions = await readJSONFile("level_one_questions.json");
   console.log("Raw level one questions:", questions.length);
   const processedQuestions = questions.flatMap(processLevelOneQuestion);
   console.log("Processed level one questions:", processedQuestions.length);
-  // console.log(
-  //   "Sample processed question:",
-  //   JSON.stringify(processedQuestions[0], null, 2)
-  // );
-  // console.log("Unique levels in questions:", [
-  //   ...new Set(processedQuestions.map((q) => q.Lvl)),
-  // ]);
   return processedQuestions;
 }
 
@@ -107,152 +96,96 @@ function processLevelOneQuestion(question: any) {
 }
 
 export async function readLevelTwoQuestions() {
-  const questions = await readJSONFile("get_questions.json");
+  const questions = await readJSONFile("level_two_questions.json");
   console.log("Loaded level two questions:", questions.length);
   return questions;
 }
 
-export async function readCellDefinitions() {
-  const cellDefinitions = await readJSONFile("framework_defination.json");
-  return cellDefinitions.map(processCellDefinition);
+export const getLevelOneQuestions = async (
+  capability: string,
+  level: number
+) => {
+  if (!isDataLoaded) {
+    await loadData();
+  }
+
+  const questions = levelOneQuestions.filter(
+    (q: any) => q.capability === capability && q.Lvl === level
+  );
+  return questions;
+};
+
+export async function getLevelTwoQuestions(
+  capability: string,
+  level: string | number
+) {
+  try {
+    if (!isDataLoaded) {
+      await loadData();
+    }
+
+    if (!levelTwoQuestions || !Array.isArray(levelTwoQuestions)) {
+      console.error("Level two questions not properly loaded");
+      return [];
+    }
+
+    const numericLevel =
+      typeof level === "string" ? parseInt(level, 10) : level;
+
+    const levelData = levelTwoQuestions.find((q) => q.Lvl === numericLevel);
+    if (!levelData) {
+      console.error(`No data found for level ${level}`);
+      return [];
+    }
+
+    const capabilityKey = ` ${capability}`;
+    const capabilityContent = levelData[capabilityKey];
+
+    if (!capabilityContent) {
+      console.error(
+        `No content found for capability "${capability}" at level ${level}`
+      );
+      return [];
+    }
+
+    const themesAndFocusAreas = parseAllAreasForLevelTwo(capabilityContent);
+
+    return themesAndFocusAreas.map((theme, index) => ({
+      id: `${capability}-l2-${index}`,
+      capability,
+      level: numericLevel,
+      question: `Regarding "${theme}", please describe your specific challenges and experiences:`,
+      theme,
+      type: "detailed",
+      requiresReflection: true,
+    }));
+  } catch (error) {
+    console.error("Error getting level two questions:", error);
+    throw error;
+  }
 }
 
-export const processQuestion = (question: any) => {
-  const processedQuestion: any = {};
-
-  for (const [key, value] of Object.entries(question)) {
-    const trimmedKey = key.trim();
-    if (
-      trimmedKey === "Lvl" ||
-      trimmedKey === "Role Name" ||
-      trimmedKey === "Description"
-    ) {
-      processedQuestion[trimmedKey] =
-        typeof value === "string" ? value.trim() : value;
-    } else {
-      const [category, type] = trimmedKey.split("(");
-      const categoryKey = category.trim();
-      const typeKey = type ? type.replace(")", "").trim() : "General";
-
-      if (!processedQuestion[categoryKey]) {
-        processedQuestion[categoryKey] = {};
-      }
-
-      if (typeof value === "string") {
-        const [ratingQuestion, ...reflectionParts] = value.split("\n\n");
-
-        processedQuestion[categoryKey][typeKey] = {
-          ratingQuestion: ratingQuestion.trim(),
-          reflection: reflectionParts.join("\n\n").trim(),
-        };
-      } else {
-        processedQuestion[categoryKey][typeKey] = value;
-      }
-    }
+function parseAllAreasForLevelTwo(content) {
+  if (typeof content !== "string") {
+    return [];
   }
 
-  return processedQuestion;
-};
-
-export const processLevel = (level: any) => {
-  const processedLevel: any = {};
-
-  for (const [key, value] of Object.entries(level)) {
-    const trimmedKey = key.trim();
-
-    if (["Lvl", "Role Name", "Description"].includes(trimmedKey)) {
-      processedLevel[trimmedKey] =
-        typeof value === "string" ? value.trim() : value;
-    } else {
-      processedLevel[trimmedKey] = processThemesAndFocusAreas(value);
-    }
-  }
-
-  return processedLevel;
-};
-
-export const processCellDefinition = (cellDef: any) => {
-  const processedCellDef: any = {};
-
-  for (const [key, value] of Object.entries(cellDef)) {
-    const trimmedKey = key.trim();
-
-    if (trimmedKey === "Lvl") {
-      processedCellDef[trimmedKey] = parseInt(value, 10);
-    } else {
-      processedCellDef[trimmedKey] =
-        typeof value === "string" ? value.trim() : value;
-    }
-  }
-
-  return processedCellDef;
-};
-
-const processThemesAndFocusAreas = (value: any) => {
-  if (typeof value !== "string") return value;
-
-  const lines = value.split("\n");
+  const lines = content.split("\n");
   const themes = [];
-  let currentTheme = "";
 
-  for (const line of lines) {
-    const trimmedLine = line.trim();
-    if (trimmedLine.startsWith("Themes or Focus Areas:")) continue;
-    if (trimmedLine === "") continue;
+  const contentLines = lines.filter(
+    (line) => line.trim() && !line.trim().startsWith("Themes or Focus Areas:")
+  );
 
-    if (trimmedLine.endsWith(":")) {
-      if (currentTheme) themes.push(currentTheme);
-      currentTheme = trimmedLine.slice(0, -1);
-    } else {
-      if (currentTheme) {
-        currentTheme += " " + trimmedLine;
-      } else {
-        themes.push(trimmedLine);
+  for (let line of contentLines) {
+    const [header, ...descriptionParts] = line.split(":");
+    if (descriptionParts.length > 0) {
+      const description = descriptionParts.join(":").trim();
+      if (header && description) {
+        themes.push(`${header.trim()}: ${description}`);
       }
     }
   }
-
-  if (currentTheme) themes.push(currentTheme);
 
   return themes;
-};
-
-export const capabilityAreasByLevel = {};
-
-function preprocessCapabilityAreas() {
-  if (!Array.isArray(capabilityAreas) || capabilityAreas.length === 0) {
-    // console.warn("capabilityAreas is empty or not an array");
-    return;
-  }
-
-  //console.log("Processing capability areas...");
-
-  capabilityAreas.forEach((area) => {
-    if (!area || typeof area !== "object") {
-      //console.warn("Invalid area object:", area);
-      return;
-    }
-
-    const level = area["Target Audience"];
-    if (!level || typeof level !== "string") {
-      //console.warn("Invalid Target Audience for area:", JSON.stringify(area));
-      return;
-    }
-
-    const trimmedLevel = level.trim();
-    if (trimmedLevel === "") {
-      // console.warn("Empty Target Audience for area:", JSON.stringify(area));
-      return;
-    }
-
-    if (!capabilityAreasByLevel[trimmedLevel]) {
-      capabilityAreasByLevel[trimmedLevel] = [];
-    }
-    capabilityAreasByLevel[trimmedLevel].push(Object.keys(area)[0]);
-  });
-
-  //console.log(
-  // "Processed capability areas:",
-  // Object.keys(capabilityAreasByLevel)
-  //);
 }

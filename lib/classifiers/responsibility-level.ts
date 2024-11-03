@@ -1,9 +1,9 @@
 import { responsibilityLevelsData } from "@/utils/data_loader";
+import { Demographics } from "@/types/assessment";
 
-export async function classifyResponsibilityLevel(demographicInfo: any) {
-  console.log("Classifying responsibility level for:", demographicInfo);
-  console.log("Responsibility Levels Data:", responsibilityLevelsData);
-
+export async function classifyResponsibilityLevel(
+  demographicInfo: Demographics
+) {
   if (
     !responsibilityLevelsData ||
     !Array.isArray(responsibilityLevelsData) ||
@@ -85,7 +85,7 @@ export async function classifyResponsibilityLevel(demographicInfo: any) {
   );
   const classifiedLevel = levels[levelIndex];
 
-  console.log("Classified level:", classifiedLevel);
+  //console.log("Classified level:", classifiedLevel);
 
   // Find the matching level in responsibilityLevelsData
   const matchedLevel = responsibilityLevelsData.find(
@@ -111,6 +111,6 @@ export async function classifyResponsibilityLevel(demographicInfo: any) {
     },
   };
 
-  console.log("Classification result:", result);
+  //console.log("Classification result:", result);
   return result;
 }

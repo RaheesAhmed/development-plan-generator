@@ -1,7 +1,6 @@
 "use client";
 
-import { Question } from "@/types/types";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -15,30 +14,21 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { DemographicQuestions } from "@/utils/demographic_questions";
+import { useRouter } from "next/navigation";
 
-interface DemographicFormProps {
-  questions: Question[];
-  userInfo: {
-    [key: string]: string;
-    name: string;
-    industry: string;
-    companySize: string;
-    department: string;
-    jobTitle: string;
-    directReports: string;
-    decisionLevel: string;
-    typicalProject: string;
-    levelsToCEO: string;
-    managesBudget: string;
+interface Question {
+  id: string;
+  question: string;
+  type: string;
+  placeholder?: string;
+  options?: { value: string; label: string }[];
+  additionalInfo?: {
+    question: string;
+    placeholder: string;
   };
-  currentStep: number;
-  handleInputChange: (id: string, value: string) => void;
-  errors: Record<string, string>;
-  handleNext: () => void;
-  handlePrevious: () => void;
-  handleDemographicSubmit: (formData: FormData) => Promise<void>;
 }
 
 interface ClassificationResult {
@@ -46,39 +36,103 @@ interface ClassificationResult {
   role: string;
   description: string;
   versionInfo: {
-    v1: string;
-    v2: string;
+    "v1.0": string;
+    "v2.0": string;
   };
   nextStep: string;
 }
 
-const DemographicForm: React.FC<DemographicFormProps> = ({
-  questions,
-  userInfo,
-  currentStep,
-  handleInputChange,
-  errors,
-  handleNext,
-  handlePrevious,
-  handleDemographicSubmit,
-}) => {
+interface ClassificationProps {
+  onComplete: (
+    userInfo: Record<string, string>,
+    classificationResult: ClassificationResult
+  ) => void;
+}
+
+const Classification: React.FC<ClassificationProps> = ({ onComplete }) => {
+  const router = useRouter();
+  const [currentStep, setCurrentStep] = useState(0);
+  const [userInfo, setUserInfo] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [classificationResult, setClassificationResult] =
     useState<ClassificationResult | null>(null);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showOptions, setShowOptions] = useState(false);
+  const [showKnowMoreOptions, setShowKnowMoreOptions] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const currentQuestion = questions[currentStep];
+  useEffect(() => {
+    const loadQuestions = async () => {
+      try {
+        const loadedQuestions = await DemographicQuestions();
+        setQuestions(loadedQuestions);
+      } catch (error) {
+        console.error("Failed to load questions:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadQuestions();
+  }, []);
 
-  const classifyUser = async (userInfo: Record<string, string>) => {
+  const handleInputChange = (id: string, value: string) => {
+    setUserInfo((prev) => ({ ...prev, [id]: value }));
+    setErrors((prev) => ({ ...prev, [id]: "" }));
+  };
+
+  const handleNext = () => {
+    if (validateCurrentStep()) {
+      setCurrentStep((prev) => prev + 1);
+    }
+  };
+
+  const handlePrevious = () => {
+    setCurrentStep((prev) => prev - 1);
+  };
+
+  const validateCurrentStep = () => {
+    const currentQuestion = questions[currentStep];
+    if (!userInfo[currentQuestion.id]) {
+      setErrors((prev) => ({
+        ...prev,
+        [currentQuestion.id]: "This field is required",
+      }));
+      return false;
+    }
+    return true;
+  };
+
+  const classifyUser = async (formData: Record<string, string>) => {
     try {
+      const payload = {
+        name: formData.name,
+        industry: formData.industry,
+        companySize: formData.employeeCount,
+        department: formData.department,
+        jobTitle: formData.jobTitle,
+        directReports: formData.directReports,
+        reportingRoles: formData.reportingRoles,
+        decisionLevel: formData.decisionLevel,
+        typicalProject: formData.typicalProject,
+        levelsToCEO: formData.levelsToCEO,
+        managesBudget: formData.managesBudget === "yes",
+      };
+
+      console.log("Sending payload:", payload);
+
       const response = await fetch("/api/assessment/classify", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(userInfo),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to classify user");
+        const errorData = await response.json();
+        console.error("Server error:", errorData);
+        throw new Error(errorData.message || "Failed to classify user");
       }
 
       const data = await response.json();
@@ -94,13 +148,82 @@ const DemographicForm: React.FC<DemographicFormProps> = ({
     }
   };
 
+  const handleSkipAssessment = async () => {
+    if (!validateCurrentStep()) return;
+    setIsSubmitting(true);
+    try {
+      const result = await classifyUser(userInfo);
+      if (result) {
+        // Send only demographic and classification data to generate endpoint
+        const response = await fetch("/api/assessment/generate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            demographicData: userInfo,
+            classificationResult: result,
+            isSkipped: true,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to generate assessment");
+        }
+
+        const data = await response.json();
+        console.log("Development Plan:", data);
+        localStorage.setItem("developmentPlan", JSON.stringify(data.plan));
+
+        router.push("/dashboard");
+        // Navigate to results or dashboard
+        onComplete(userInfo, result);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to process request. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleShowSampleData = () => {
+    toast({
+      title: "Sample Assessment",
+      description: (
+        <div className="space-y-2">
+          <p>Here's what you can expect in the assessment:</p>
+          <ul className="list-disc pl-4">
+            <li>Leadership capability evaluation</li>
+            <li>Skill-based questions</li>
+            <li>Confidence assessment</li>
+            <li>Detailed feedback and recommendations</li>
+          </ul>
+          <p>Average completion time: 30-45 minutes</p>
+        </div>
+      ),
+      duration: 10000,
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (currentStep === questions.length - 1) {
-      const result = await classifyUser(userInfo);
-      if (result) {
-        setClassificationResult(result);
-        handleDemographicSubmit(userInfo);
+      if (validateCurrentStep()) {
+        setIsSubmitting(true);
+        try {
+          const result = await classifyUser(userInfo);
+          if (result) {
+            setClassificationResult(result);
+            setShowOptions(true);
+          }
+        } finally {
+          setIsSubmitting(false);
+        }
       }
     } else {
       handleNext();
@@ -168,11 +291,8 @@ const DemographicForm: React.FC<DemographicFormProps> = ({
         return (
           <div className="space-y-4">
             <RadioGroup
-              id={question.id}
               value={userInfo[question.id]}
-              onValueChange={(value) => {
-                handleInputChange(question.id, value);
-              }}
+              onValueChange={(value) => handleInputChange(question.id, value)}
               className="flex space-x-4"
             >
               <div className="flex items-center">
@@ -180,7 +300,6 @@ const DemographicForm: React.FC<DemographicFormProps> = ({
                   value="yes"
                   id={`${question.id}-yes`}
                   className="sr-only"
-                  type="button"
                 />
                 <Label
                   htmlFor={`${question.id}-yes`}
@@ -198,7 +317,6 @@ const DemographicForm: React.FC<DemographicFormProps> = ({
                   value="no"
                   id={`${question.id}-no`}
                   className="sr-only"
-                  type="button"
                 />
                 <Label
                   htmlFor={`${question.id}-no`}
@@ -247,6 +365,62 @@ const DemographicForm: React.FC<DemographicFormProps> = ({
         return null;
     }
   };
+
+  const currentQuestion = questions[currentStep];
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-xl">Loading questions...</div>
+      </div>
+    );
+  }
+
+  const renderOptions = () => (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-4 mt-6"
+    >
+      <Button
+        onClick={() => setShowKnowMoreOptions(true)}
+        className="w-full bg-blue-500 hover:bg-blue-600"
+      >
+        Start Assessment
+      </Button>
+      <Button
+        onClick={handleSkipAssessment}
+        disabled={isSubmitting}
+        variant="outline"
+        className="w-full"
+      >
+        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        Skip Assessment
+      </Button>
+    </motion.div>
+  );
+
+  const renderKnowMoreOptions = () => (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-4 mt-6"
+    >
+      <Button
+        onClick={() => onComplete(userInfo, classificationResult!)}
+        className="w-full bg-blue-500 hover:bg-blue-600"
+      >
+        Start Now
+      </Button>
+      <Button
+        onClick={handleShowSampleData}
+        variant="outline"
+        className="w-full"
+      >
+        Know More
+      </Button>
+    </motion.div>
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -329,8 +503,12 @@ const DemographicForm: React.FC<DemographicFormProps> = ({
                   ) : (
                     <Button
                       type="submit"
+                      disabled={isSubmitting}
                       className="bg-green-500 hover:bg-green-600"
                     >
+                      {isSubmitting && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
                       Submit
                     </Button>
                   )}
@@ -344,13 +522,14 @@ const DemographicForm: React.FC<DemographicFormProps> = ({
               transition={{ duration: 0.5 }}
               className="space-y-6"
             >
-              <h2 className="text-2xl font-bold text-gray-800">
-                Classification Result
-              </h2>
               <div className="space-y-4">
                 <p className="text-lg">
                   <strong>Responsibility Level:</strong>{" "}
                   {classificationResult.responsibilityLevel}
+                </p>
+                <p className="text-lg">
+                  <strong>Assessment ID:</strong>{" "}
+                  {classificationResult.assessmentId}
                 </p>
                 <p className="text-lg">
                   <strong>Role:</strong> {classificationResult.role}
@@ -359,27 +538,26 @@ const DemographicForm: React.FC<DemographicFormProps> = ({
                   <strong>Description:</strong>{" "}
                   {classificationResult.description}
                 </p>
-                <div>
+                <div className="space-y-2">
                   <p className="text-lg font-semibold">Version Info:</p>
-                  <p className="ml-4">
-                    <strong>v1.0:</strong> {classificationResult.versionInfo.v1}
-                  </p>
-                  <p className="ml-4">
-                    <strong>v2.0:</strong> {classificationResult.versionInfo.v2}
-                  </p>
+                  <div className="ml-4 space-y-2">
+                    <p className="text-lg">
+                      <strong>v1.0:</strong>{" "}
+                      {classificationResult.versionInfo["v1.0"]}
+                    </p>
+                    <p className="text-lg">
+                      <strong>v2.0:</strong>{" "}
+                      {classificationResult.versionInfo["v2.0"]}
+                    </p>
+                  </div>
                 </div>
                 <p className="text-lg">
                   <strong>Next Step:</strong> {classificationResult.nextStep}
                 </p>
               </div>
-              <Button
-                onClick={() => {
-                  /* Handle next step navigation */
-                }}
-                className="w-full bg-blue-500 hover:bg-blue-600 text-white"
-              >
-                Continue to {classificationResult.nextStep}
-              </Button>
+
+              {!showKnowMoreOptions && renderOptions()}
+              {showKnowMoreOptions && renderKnowMoreOptions()}
             </motion.div>
           )}
         </div>
@@ -388,4 +566,4 @@ const DemographicForm: React.FC<DemographicFormProps> = ({
   );
 };
 
-export default DemographicForm;
+export default Classification;

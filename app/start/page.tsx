@@ -1,33 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import DemographicForm from "@/components/DemographicForm";
-import GetAllQuestionByLevel from "@/components/GetAllQuestionByLevel";
-import KnowMoreAboutAssesment from "@/components/KnowMoreAboutAssesment";
-import { DemographicQuestions } from "@/utils/demographic_questions";
+import React, { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import Classification from "@/components/classification";
+import LevelOneQuestions from "@/components/LevelOneQuestions";
+import LevelTwoQuestions from "@/components/levelTwoQuestions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { Question } from "@/types/assessment";
 import { toast } from "@/hooks/use-toast";
-import { AssessmentResponse } from "@/types/assessment";
-import ReactMarkdown from "react-markdown";
+import { CheckIcon } from "lucide-react";
 
-interface ResponsibilityLevel {
-  role: string;
-  level: number;
-  description: string;
-}
-
-interface MultiRaterData {
-  raterEmail: string;
-  relationship: string;
-  completed: boolean;
-}
-
-interface FormData {
-  [key: string]: string;
+interface UserInfo {
   name: string;
   industry: string;
   companySize: string;
@@ -40,448 +25,291 @@ interface FormData {
   managesBudget: string;
 }
 
-interface ClassifyResponse {
-  success: boolean;
-  data: {
-    responsibilityLevel: number;
-    role: string;
-    description: string;
-    versionInfo: {
-      "v1.0": string;
-      "v2.0": string;
-    };
-    nextStep: string;
-  };
-}
-
-interface FormattedResponsibilityLevel {
-  level: number;
+interface ClassificationResult {
+  responsibilityLevel: number;
   role: string;
   description: string;
+  versionInfo: {
+    "v1.0": string;
+    "v2.0": string;
+  };
+  nextStep: string;
 }
 
-export default function StartPage() {
-  const [stage, setStage] = useState<string>("demographic");
-  const [responsibilityLevel, setResponsibilityLevel] =
-    useState<ResponsibilityLevel | null>(null);
-  const [userInfo, setUserInfo] = useState<FormData | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [generatedPlan, setGeneratedPlan] = useState<string | null>(null);
-  const [raters, setRaters] = useState<MultiRaterData[]>([]);
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [isLoadingQuestions, setIsLoadingQuestions] = useState(true);
+interface AssessmentResponse {
+  questionId?: string;
+  rating?: number;
+  response: string;
+  reflectionRating?: number;
+  reflection?: string;
+  question: {
+    ratingQuestion?: string;
+    reflection?: string;
+    question?: string;
+  };
+  area: string;
+}
+
+export default function AssessmentFlow() {
+  const [step, setStep] = useState<
+    "intro" | "classification" | "levelOne" | "levelTwo" | "complete"
+  >("intro");
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [classificationResult, setClassificationResult] =
+    useState<ClassificationResult | null>(null);
+  const [levelOneResponses, setLevelOneResponses] = useState<
+    AssessmentResponse[]
+  >([]);
+  const [currentCapability, setCurrentCapability] = useState<string | null>(
+    null
+  );
+  const [skillRating, setSkillRating] = useState<number | null>(null);
+  const [confidenceRating, setConfidenceRating] = useState<number | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
-  const [currentStep, setCurrentStep] = useState(0);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadQuestions = async () => {
-      try {
-        const loadedQuestions = await DemographicQuestions();
-        setQuestions(loadedQuestions as Question[]);
-      } catch (error) {
-        console.error("Error loading questions:", error);
-        setError(
-          "Failed to load demographic questions. Please try again later."
-        );
-      } finally {
-        setIsLoadingQuestions(false);
-      }
-    };
-
-    loadQuestions();
-  }, []);
-
-  const handleDemographicSubmit = async (formData: FormData) => {
+  const handleClassificationComplete = async (
+    info: UserInfo,
+    result: ClassificationResult
+  ) => {
+    setIsSubmitting(true);
     try {
-      const response = await fetch(`/api/assessment/classify`, {
+      setUserInfo(info);
+      setClassificationResult(result);
+      setStep("levelOne");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleLevelOneComplete = async (responses: AssessmentResponse[]) => {
+    setLevelOneResponses(responses);
+    const lastResponse = responses[responses.length - 1];
+
+    try {
+      setIsSubmitting(true);
+
+      const response = await fetch("/api/assessment/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: formData.name,
-          industry: formData.industry,
-          companySize: formData.companySize,
-          department: formData.department,
-          jobTitle: formData.jobTitle,
-          directReports: formData.directReports,
-          decisionLevel: formData.decisionLevel,
-          typicalProject: formData.typicalProject,
-          levelsToCEO: formData.levelsToCEO,
-          managesBudget: formData.managesBudget === "yes",
+          responses: responses,
+          userInfo: userInfo,
+          classificationResult: classificationResult,
+          completedAt: new Date().toISOString(),
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to classify responsibility level");
+        throw new Error("Failed to generate development plan");
       }
-
-      const data: ClassifyResponse = await response.json();
-
-      const formattedLevel: FormattedResponsibilityLevel = {
-        level: data.data.responsibilityLevel,
-        role: data.data.role,
-        description: data.data.description,
-      };
-
-      setResponsibilityLevel(formattedLevel);
-      setUserInfo(formData);
-      setStage("assessmentOptions");
-    } catch (error) {
-      console.error("Error:", error);
-      toast({
-        title: "Error",
-        description: "Failed to classify responsibility level",
-      });
-    }
-  };
-
-  const handleAssessmentComplete = async (
-    answers: AssessmentResponse[]
-  ): Promise<void> => {
-    setIsLoading(true);
-    try {
-      const response = await fetch(`/api/assessment/generate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          userInfo,
-          responsibilityLevel,
-          assessmentAnswers: answers,
-          assessmentCompleted: true,
-        }),
-      });
 
       const data = await response.json();
 
-      if (data.success && data.plan) {
-        localStorage.setItem("developmentPlan", data.plan);
+      localStorage.setItem("developmentPlan", JSON.stringify(data.plan));
+      localStorage.setItem("developmentPlanGoals", JSON.stringify(data.goals));
+      localStorage.setItem(
+        "developmentPlanSkills",
+        JSON.stringify(data.skills)
+      );
 
-        const storedAssessment = localStorage.getItem("assessmentResponses");
-        if (storedAssessment) {
-          const updatedAssessment = {
-            ...JSON.parse(storedAssessment),
-            status: "completed",
-          };
-          localStorage.setItem(
-            "assessmentResponses",
-            JSON.stringify(updatedAssessment)
-          );
-        }
-
-        setGeneratedPlan(data.plan);
-        router.push("/dashboard");
+      if (
+        (lastResponse.rating && lastResponse.rating < 4) ||
+        (lastResponse.reflectionRating && lastResponse.reflectionRating < 3)
+      ) {
+        setCurrentCapability(lastResponse.area);
+        setSkillRating(lastResponse.rating || 0);
+        setConfidenceRating(lastResponse.reflectionRating || 0);
+        setStep("levelTwo");
       } else {
-        throw new Error(data.error || "Failed to generate plan");
+        setStep("complete");
       }
     } catch (error) {
-      console.error("Error:", error);
+      console.error("Error generating development plan:", error);
       toast({
         title: "Error",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Failed to generate development plan",
+        description: "Failed to generate development plan. Please try again.",
+        variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  const handleSkipAssessment = async () => {
-    if (!userInfo || !responsibilityLevel) {
-      console.error("User info or responsibility level is missing");
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const response = await fetch(`/api/assessment/generate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          userInfo,
-          responsibilityLevel,
-          assessmentCompleted: false,
-        }),
-      });
-      const data = await response.json();
-      if (data.success && data.plan) {
-        setGeneratedPlan(data.plan);
-        setStage("planGenerated");
-      }
-    } catch (error) {
-      console.error("Error generating plan:", error);
-    } finally {
-      setIsLoading(false);
-    }
+  const handleLevelTwoComplete = (responses: AssessmentResponse[]) => {
+    setLevelOneResponses((prev) => [...prev, ...responses]);
+    setStep("complete");
   };
 
-  const navigateToDashboard = () => {
-    // Store the generated plan in localStorage before navigating
-    if (generatedPlan) {
-      localStorage.setItem("developmentPlan", generatedPlan);
-    }
-    router.push("/dashboard");
-  };
-
-  const handleInputChange = (id: string, value: string) => {
-    setUserInfo((prev) => {
-      const updatedInfo: FormData = {
-        name: "",
-        industry: "",
-        companySize: "",
-        department: "",
-        jobTitle: "",
-        directReports: "",
-        decisionLevel: "",
-        typicalProject: "",
-        levelsToCEO: "",
-        managesBudget: "",
-        ...(prev || {}),
-        [id]: value,
-      };
-      return updatedInfo;
-    });
-    setErrors((prev) => ({ ...prev, [id]: "" }));
-  };
-
-  const validateStep = () => {
-    if (!questions[currentStep]) return true;
-    const value = userInfo?.[questions[currentStep].id];
-    let isValid = true;
-    let errorMessage = "";
-
-    if (!value) {
-      isValid = false;
-      errorMessage = "This field is required";
-    }
-
-    setErrors((prev) => ({
-      ...prev,
-      [questions[currentStep].id]: errorMessage,
-    }));
-    return isValid;
-  };
-
-  const handleNext = () => {
-    if (validateStep()) {
-      setCurrentStep((prev) => Math.min(prev + 1, questions.length - 1));
-    }
-  };
-
-  const handlePrevious = () => {
-    setCurrentStep((prev) => Math.max(prev - 1, 0));
-  };
-
-  const renderStage = () => {
-    switch (stage) {
-      case "demographic":
-        if (error) {
-          return (
-            <Card className="max-w-md mx-auto mt-8">
-              <CardContent className="flex flex-col items-center p-6">
-                <div className="text-destructive mb-4">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="mb-2 mx-auto"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="8" x2="12" y2="12" />
-                    <line x1="12" y1="16" x2="12.01" y2="16" />
-                  </svg>
-                  {error}
+  const renderStep = () => {
+    switch (step) {
+      case "intro":
+        return (
+          <Card className="w-full max-w-3xl shadow-xl">
+            <CardHeader className="bg-gradient-to-r from-indigo-600 to-blue-500 text-white rounded-t-xl">
+              <CardTitle className="text-3xl font-bold text-center">
+                Leadership Capability Assessment
+              </CardTitle>
+              <p className="text-blue-100 text-center mt-2">
+                Discover Your Leadership Potential
+              </p>
+            </CardHeader>
+            <CardContent className="p-8 space-y-6">
+              <div className="text-center space-y-4">
+                <p className="text-lg text-gray-700">
+                  Welcome to the Leadership Capability Assessment. This
+                  comprehensive evaluation will help identify your leadership
+                  strengths and areas for growth.
+                </p>
+                <div className="bg-gradient-to-r from-indigo-50 to-blue-50 p-6 rounded-lg">
+                  <h3 className="font-semibold text-gray-900 mb-4">
+                    Assessment Journey
+                  </h3>
+                  <ol className="space-y-4">
+                    {[
+                      {
+                        title: "Demographic Information",
+                        description: "Help us understand your context",
+                      },
+                      {
+                        title: "Core Assessment",
+                        description: "Evaluate key leadership capabilities",
+                      },
+                      {
+                        title: "Deep Dive (if needed)",
+                        description: "Detailed exploration of specific areas",
+                      },
+                    ].map((step, index) => (
+                      <li
+                        key={index}
+                        className="flex items-start space-x-3 text-left"
+                      >
+                        <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-600 to-blue-500 text-white font-semibold">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-900">
+                            {step.title}
+                          </h4>
+                          <p className="text-sm text-gray-600">
+                            {step.description}
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
                 </div>
-                <Button onClick={() => window.location.reload()}>
-                  Try Again
+              </div>
+              <div className="mt-8">
+                <Button
+                  onClick={() => setStep("classification")}
+                  disabled={isSubmitting}
+                  className="w-full bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 text-white font-semibold py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
+                >
+                  {isSubmitting ? (
+                    <div className="flex items-center justify-center">
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      <span>Processing...</span>
+                    </div>
+                  ) : (
+                    <span>Begin Assessment</span>
+                  )}
                 </Button>
-              </CardContent>
-            </Card>
-          );
-        }
-
-        if (isLoadingQuestions) {
-          return (
-            <Card className="max-w-md mx-auto mt-8">
-              <CardContent className="flex flex-col items-center p-6">
-                <Loader2 className="h-8 w-8 animate-spin mb-2" />
-                <p>Loading questions...</p>
-              </CardContent>
-            </Card>
-          );
-        }
-
-        return (
-          <DemographicForm
-            questions={questions}
-            userInfo={
-              userInfo || {
-                name: "",
-                industry: "",
-                companySize: "",
-                department: "",
-                jobTitle: "",
-                directReports: "",
-                decisionLevel: "",
-                typicalProject: "",
-                levelsToCEO: "",
-                managesBudget: "",
-              }
-            }
-            currentStep={currentStep}
-            handleInputChange={handleInputChange}
-            errors={errors}
-            handleNext={handleNext}
-            handlePrevious={handlePrevious}
-            handleDemographicSubmit={handleDemographicSubmit}
+                <p className="text-sm text-gray-500 text-center mt-4">
+                  Estimated completion time: 30-45 minutes
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      case "classification":
+        return <Classification onComplete={handleClassificationComplete} />;
+      case "levelOne":
+        return classificationResult ? (
+          <LevelOneQuestions
+            level={classificationResult.responsibilityLevel}
+            userInfo={userInfo}
+            responsibilityLevel={{
+              level: classificationResult.responsibilityLevel,
+              description: classificationResult.description,
+            }}
+            onComplete={handleLevelOneComplete}
           />
-        );
-      case "assessmentOptions":
+        ) : null;
+      case "levelTwo":
+        return currentCapability &&
+          skillRating !== null &&
+          confidenceRating !== null ? (
+          <LevelTwoQuestions
+            level={classificationResult?.responsibilityLevel || 1}
+            capability={currentCapability}
+            skill={skillRating}
+            confidence={confidenceRating}
+            onComplete={handleLevelTwoComplete}
+          />
+        ) : null;
+      case "complete":
         return (
-          <Card className="max-w-md mx-auto mt-8">
-            <CardHeader>
-              <CardTitle>Assessment Options</CardTitle>
+          <Card className="w-full max-w-3xl shadow-xl">
+            <CardHeader className="bg-gradient-to-r from-emerald-600 to-teal-500 text-white rounded-t-xl">
+              <CardTitle className="text-3xl font-bold text-center">
+                Assessment Complete
+              </CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-col space-y-4">
-              <Button onClick={() => setStage("assessmentChoices")}>
-                Start Assessment
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setStage("skipAssessment")}
-              >
-                Skip Assessment
-              </Button>
-            </CardContent>
-          </Card>
-        );
-      case "assessmentChoices":
-        return (
-          <Card className="max-w-md mx-auto mt-8">
-            <CardHeader>
-              <CardTitle>Choose an Option</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col space-y-4">
-              <Button onClick={() => setStage("levelOneQuestions")}>
-                Start Now
-              </Button>
-              <Button variant="outline" onClick={() => setStage("knowMore")}>
-                Know More
-              </Button>
-            </CardContent>
-          </Card>
-        );
-      case "levelOneQuestions":
-        return responsibilityLevel ? (
-          <div>
-            <GetAllQuestionByLevel
-              level={responsibilityLevel.level}
-              userInfo={userInfo}
-              responsibilityLevel={responsibilityLevel}
-              onComplete={handleAssessmentComplete}
-              isLoading={isLoading}
-            />
-            {isLoading && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
-                <Card className="w-[300px]">
-                  <CardContent className="flex flex-col items-center p-6">
-                    <Loader2 className="h-8 w-8 animate-spin mb-2" />
-                    <p>Generating your development plan...</p>
-                  </CardContent>
-                </Card>
+            <CardContent className="p-8 space-y-6">
+              <div className="text-center space-y-4">
+                <div className="w-20 h-20 mx-auto bg-emerald-100 rounded-full flex items-center justify-center">
+                  <CheckIcon className="w-10 h-10 text-emerald-600" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Congratulations!
+                </h2>
+                <p className="text-lg text-gray-700">
+                  You've successfully completed the Leadership Capability
+                  Assessment.
+                </p>
+                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-6 rounded-lg">
+                  <p className="text-gray-700">
+                    Your responses have been analyzed and your personalized
+                    development plan is ready.
+                  </p>
+                </div>
               </div>
-            )}
-          </div>
-        ) : null;
-      case "knowMore":
-        return responsibilityLevel ? (
-          <KnowMoreAboutAssesment level={responsibilityLevel.level} />
-        ) : null;
-      case "skipAssessment":
-        return (
-          <Card className="max-w-md mx-auto mt-8">
-            <CardHeader>
-              <CardTitle>Skipping Assessment</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p>
-                You've chosen to skip the assessment. We'll generate a
-                development plan based on your profile information.
-              </p>
               <Button
-                onClick={handleSkipAssessment}
-                className="mt-4"
-                disabled={isLoading}
+                onClick={() => router.push("/dashboard")}
+                disabled={isSubmitting}
+                className="w-full bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white font-semibold py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
               >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
+                {isSubmitting ? (
+                  <div className="flex items-center justify-center">
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    <span>Generating Plan...</span>
+                  </div>
                 ) : (
-                  "Generate Plan"
+                  <span>View Development Plan</span>
                 )}
               </Button>
             </CardContent>
           </Card>
         );
-      case "planGenerated":
-        return (
-          <Card className="max-w-3xl mx-auto mt-8">
-            <CardHeader>
-              <CardTitle>Your Development Plan</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="mb-4">
-                Based on your{" "}
-                {responsibilityLevel ? "assessment results" : "profile"}, we've
-                generated the following development plan:
-              </p>
-              <div className="mt-4 p-6 bg-gray-100 rounded-md overflow-auto max-h-[60vh]">
-                {generatedPlan ? (
-                  <ReactMarkdown className="prose prose-sm max-w-none">
-                    {generatedPlan}
-                  </ReactMarkdown>
-                ) : (
-                  <p>No plan generated yet.</p>
-                )}
-              </div>
-              <div className="mt-6 flex justify-between">
-                <Button onClick={navigateToDashboard}>View in Dashboard</Button>
-                <Button variant="outline" onClick={() => window.print()}>
-                  Print Plan
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      default:
-        return null;
     }
   };
 
-  const exportAssessmentData = async () => {
-    // Add export functionality for consultants/companies
-  };
-
-  const generateAggregateReport = async () => {
-    // Add reporting functionality for organizational insights
-  };
-
-  return <div className="container mx-auto px-4 py-8">{renderStage()}</div>;
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center p-4">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={step}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.3 }}
+        >
+          {renderStep()}
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
 }

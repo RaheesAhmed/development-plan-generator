@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { AssessmentResponse } from "@/types/types";
 import { PLAN_INSTRUCTIONS } from "@/prompts/plan_instructions";
+import { prisma } from "@/lib/services/db-service";
 
 export const runtime = "edge";
 export const maxDuration = 300;
@@ -27,6 +28,7 @@ interface GenerateRequestBody {
     typicalProject: string;
     levelsToCEO: string;
     managesBudget: string;
+    userId: string;
   };
   responsibilityLevel: {
     level: number;
@@ -49,18 +51,29 @@ export async function POST(request: Request) {
 
     const threadId = (await openai.beta.threads.create()).id;
 
-    // Create message with structured prompt
-    const prompt = `Generate a comprehensive professional development plan following this structured format. The plan should be specific, actionable, and deeply personalized.
-    here is the user profile: ${JSON.stringify(userInfo)}
-    here is the assessment results: ${JSON.stringify(assessmentAnswers)}
-    here is the responsibility level: ${JSON.stringify(responsibilityLevel)}
+    // Create different prompts based on assessment completion
+    const promptContent = assessmentCompleted
+      ? `Generate a comprehensive professional development plan following this structured format. The plan should be specific, actionable, and deeply personalized.
+         here is the user profile: ${JSON.stringify(userInfo)}
+         here is the assessment results: ${JSON.stringify(assessmentAnswers)}
+         here is the responsibility level: ${JSON.stringify(
+           responsibilityLevel
+         )}
+        `
+      : `Generate a comprehensive professional development plan following this structured format. The plan should be specific, actionable, and deeply personalized based on the available information.
+         here is the user profile: ${JSON.stringify(userInfo)}
+         here is the responsibility level: ${JSON.stringify(
+           responsibilityLevel
+         )}
 
-    
-    Please provide a structured development plan with clear action items and timelines.`;
+         
+        `;
 
     await openai.beta.threads.messages.create(threadId, {
       role: "user",
-      content: prompt,
+      content: `${promptContent}
+      
+      `,
     });
 
     const run = await openai.beta.threads.runs.create(threadId, {
@@ -88,6 +101,7 @@ export async function POST(request: Request) {
 
       if (latestMessage.content[0].type === "text") {
         const plan = latestMessage.content[0].text.value;
+
         return Response.json({ success: true, plan });
       }
     }

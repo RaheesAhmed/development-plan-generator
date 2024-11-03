@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 const BrainIcon = () => (
   <svg
@@ -187,7 +188,14 @@ export default function HomePage() {
             transition={{ duration: 0.8, delay: 0.4 }}
           >
             <Link href="/start">
-              <Button className="bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 text-white font-semibold py-6 px-8 rounded-full transition duration-300 transform hover:scale-105 shadow-lg text-lg">
+              <Button
+                variant="default"
+                className={cn(
+                  "bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600",
+                  "text-white font-semibold py-6 px-8 rounded-full transition duration-300",
+                  "transform hover:scale-105 shadow-lg text-lg"
+                )}
+              >
                 Start Your Journey <ArrowRightIcon className="ml-2 h-5 w-5" />
               </Button>
             </Link>
@@ -348,7 +356,14 @@ export default function HomePage() {
             AI-driven leadership development platform.
           </p>
           <Link href="/start">
-            <Button className="bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 text-white font-semibold py-6 px-8 rounded-full transition duration-300 transform hover:scale-105 shadow-lg text-lg">
+            <Button
+              variant="default"
+              className={cn(
+                "bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600",
+                "text-white font-semibold py-6 px-8 rounded-full transition duration-300",
+                "transform hover:scale-105 shadow-lg text-lg"
+              )}
+            >
               Get Started Now <ArrowRightIcon className="ml-2 h-5 w-5" />
             </Button>
           </Link>

@@ -77,4 +77,8 @@ Participant Profile:
 - Competency Assessment: {competency_ratings}
 
 
-Generate the development plan following these exact specifications, ensuring all content is highly personalized, actionable, and aligned with the participant's role level and development needs.`;
+Generate the development plan following these exact specifications, ensuring all content is highly personalized, actionable, and aligned with the participant's role level and development needs.
+
+NOTE:
+
+Do not give any explanation just return beautiful markdown format do not add here is your plan or something like that always give the only plan noo need to explain anything without plan just return the beautiful markdown format`;
