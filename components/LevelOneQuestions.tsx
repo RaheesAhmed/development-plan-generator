@@ -512,6 +512,35 @@ export default function LevelOneQuestions({
               className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 min-h-[150px] text-lg"
             />
           </div>
+          {showLevelTwoPrompt && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-8 p-6 bg-blue-50 rounded-lg border-2 border-blue-200"
+            >
+              <h3 className="text-xl font-bold text-blue-800 mb-4">
+                💡 Opportunity for Growth
+              </h3>
+              <p className="text-lg font-medium text-blue-700 mb-4">
+                Would you like to develop your skills in this area?
+              </p>
+              <div className="flex space-x-4">
+                <Button
+                  onClick={() => handleWantLevelTwo(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-2 text-lg"
+                >
+                  Yes, I'd like to improve
+                </Button>
+                <Button
+                  onClick={() => handleWantLevelTwo(false)}
+                  variant="outline"
+                  className="text-blue-600 border-blue-600 hover:bg-blue-50 font-semibold px-8 py-2 text-lg"
+                >
+                  No, continue
+                </Button>
+              </div>
+            </motion.div>
+          )}
         </CardContent>
       </Card>
     );
@@ -655,28 +684,6 @@ export default function LevelOneQuestions({
                 <ChevronRight className="w-5 h-5 ml-2" />
               </Button>
             </div>
-            {showLevelTwoPrompt && (
-              <div className="mt-6">
-                <p className="text-lg font-medium text-gray-800">
-                  Would you like to develop your skills in this area?
-                </p>
-                <div className="flex space-x-4 mt-4">
-                  <Button
-                    onClick={() => handleWantLevelTwo(true)}
-                    className="bg-blue-500 hover:bg-blue-600 text-white"
-                  >
-                    Yes
-                  </Button>
-                  <Button
-                    onClick={() => handleWantLevelTwo(false)}
-                    variant="outline"
-                    className="text-blue-500"
-                  >
-                    No
-                  </Button>
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       ) : (

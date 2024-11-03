@@ -18,6 +18,11 @@ import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { DemographicQuestions } from "@/utils/demographic_questions";
 import { useRouter } from "next/navigation";
+import {
+  demographicSchema,
+  type DemographicFormData,
+} from "@/lib/validators/demographics";
+import { z } from "zod";
 
 interface Question {
   id: string;
@@ -47,6 +52,20 @@ interface ClassificationProps {
     userInfo: Record<string, string>,
     classificationResult: ClassificationResult
   ) => void;
+}
+
+interface ClassificationPayload {
+  name: string;
+  industry: string;
+  companySize: number;
+  department: string;
+  jobTitle: string;
+  directReports: number;
+  reportingRoles: string;
+  decisionLevel: string;
+  typicalProject: string;
+  levelsToCEO: number;
+  managesBudget: boolean;
 }
 
 const Classification: React.FC<ClassificationProps> = ({ onComplete }) => {
@@ -93,40 +112,71 @@ const Classification: React.FC<ClassificationProps> = ({ onComplete }) => {
 
   const validateCurrentStep = () => {
     const currentQuestion = questions[currentStep];
-    if (!userInfo[currentQuestion.id]) {
+    const value = userInfo[currentQuestion.id];
+
+    if (!value || value.trim() === "") {
       setErrors((prev) => ({
         ...prev,
         [currentQuestion.id]: "This field is required",
       }));
       return false;
     }
+
+    if (currentQuestion.type === "number") {
+      const numValue = parseInt(value);
+      if (isNaN(numValue) || numValue < 0) {
+        setErrors((prev) => ({
+          ...prev,
+          [currentQuestion.id]: "Please enter a valid positive number",
+        }));
+        return false;
+      }
+    }
+
+    if (currentQuestion.id === "typicalProject" && value.length < 20) {
+      setErrors((prev) => ({
+        ...prev,
+        [currentQuestion.id]: "Please provide at least 20 characters",
+      }));
+      return false;
+    }
+
     return true;
   };
 
   const classifyUser = async (formData: Record<string, string>) => {
     try {
-      const payload = {
+      const payload: DemographicFormData = {
         name: formData.name,
         industry: formData.industry,
-        companySize: formData.employeeCount,
+        companySize: Math.max(1, parseInt(formData.employeeCount) || 0),
         department: formData.department,
         jobTitle: formData.jobTitle,
-        directReports: formData.directReports,
-        reportingRoles: formData.reportingRoles,
-        decisionLevel: formData.decisionLevel,
-        typicalProject: formData.typicalProject,
-        levelsToCEO: formData.levelsToCEO,
+        directReports: parseInt(formData.directReports) || 0,
+        reportingRoles: formData.reportingRoles || "None",
+        decisionLevel: (formData.decisionLevel.charAt(0).toUpperCase() +
+          formData.decisionLevel.slice(1)) as
+          | "Operational"
+          | "Tactical"
+          | "Strategic",
+        typicalProject:
+          formData.typicalProject.length < 20
+            ? `${formData.typicalProject} - Additional details needed to meet minimum length requirement`
+            : formData.typicalProject,
+        levelsToCEO: parseInt(formData.levelsToCEO) || 0,
         managesBudget: formData.managesBudget === "yes",
       };
 
-      console.log("Sending payload:", payload);
+      const validatedData = demographicSchema.parse(payload);
+
+      console.log("Sending validated payload:", validatedData);
 
       const response = await fetch("/api/assessment/classify", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(validatedData),
       });
 
       if (!response.ok) {
@@ -136,14 +186,38 @@ const Classification: React.FC<ClassificationProps> = ({ onComplete }) => {
       }
 
       const data = await response.json();
+      console.log("Classification response:", data);
+
+      if (!data.data || !data.data.responsibilityLevel) {
+        console.error("Unexpected response structure:", data);
+        throw new Error("Invalid response structure");
+      }
+
       return data.data;
     } catch (error) {
       console.error("Error classifying user:", error);
-      toast({
-        title: "Error",
-        description: "Failed to classify user. Please try again.",
-        variant: "destructive",
-      });
+      if (error instanceof z.ZodError) {
+        const errorMessages = error.errors
+          .map((err) => {
+            const field = err.path[0];
+            return `${field}: ${err.message}`;
+          })
+          .join("\n");
+
+        toast({
+          title: "Please check your inputs",
+          description: errorMessages,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: `Failed to process your information: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`,
+          variant: "destructive",
+        });
+      }
       return null;
     }
   };
@@ -216,11 +290,24 @@ const Classification: React.FC<ClassificationProps> = ({ onComplete }) => {
       if (validateCurrentStep()) {
         setIsSubmitting(true);
         try {
+          console.log("Submitting user info:", userInfo);
           const result = await classifyUser(userInfo);
+          console.log("Classification result:", result);
+
           if (result) {
             setClassificationResult(result);
             setShowOptions(true);
+          } else {
+            throw new Error("No classification result received");
           }
+        } catch (error) {
+          console.error("Error in handleSubmit:", error);
+          toast({
+            title: "Error",
+            description:
+              "Failed to process your information. Please try again.",
+            variant: "destructive",
+          });
         } finally {
           setIsSubmitting(false);
         }
@@ -526,10 +613,6 @@ const Classification: React.FC<ClassificationProps> = ({ onComplete }) => {
                 <p className="text-lg">
                   <strong>Responsibility Level:</strong>{" "}
                   {classificationResult.responsibilityLevel}
-                </p>
-                <p className="text-lg">
-                  <strong>Assessment ID:</strong>{" "}
-                  {classificationResult.assessmentId}
                 </p>
                 <p className="text-lg">
                   <strong>Role:</strong> {classificationResult.role}

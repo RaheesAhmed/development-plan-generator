@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 
 export const maxDuration = 30;
 
-export async function GET(req: Request, res: Response) {
+export async function GET() {
   try {
     await classifierService.initialize();
     return Response.json({ response: "Server is Running..." });
@@ -25,8 +25,6 @@ export async function POST(request: Request) {
     await classifierService.initialize();
 
     const demographic = await request.json();
-    console.log("Demographic Info:", demographic);
-
     const { error, data } = demographicSchema.safeParse(demographic);
 
     if (error) {
@@ -50,18 +48,21 @@ export async function POST(request: Request) {
 
     const user = await prisma.user.upsert({
       where: {
-        email: data.email || "default@example.com",
+        email: data.email || "anonymous@example.com",
       },
       update: {},
       create: {
-        email: data.email || "default@example.com",
-        hashedPassword: "temporary-hash",
+        email: data.email || "anonymous@example.com",
         name: data.name || "Anonymous",
+        hashedPassword: "temporary-hash",
       },
     });
 
-    const savedDemographic = await prisma.demographic.create({
-      data: {
+    const savedDemographic = await prisma.demographic.upsert({
+      where: {
+        userId: user.id,
+      },
+      update: {
         industry: data.industry,
         companySize: processedInfo.companySize,
         department: data.department,
@@ -71,22 +72,29 @@ export async function POST(request: Request) {
         typicalProject: data.typicalProject,
         levelsToCEO: processedInfo.levelsToCEO,
         managesBudget: processedInfo.managesBudget,
-        user: {
-          connect: { id: user.id },
-        },
+      },
+      create: {
+        industry: data.industry,
+        companySize: processedInfo.companySize,
+        department: data.department,
+        jobTitle: data.jobTitle,
+        directReports: processedInfo.directReports,
+        decisionLevel: data.decisionLevel,
+        typicalProject: data.typicalProject,
+        levelsToCEO: processedInfo.levelsToCEO,
+        managesBudget: processedInfo.managesBudget,
+        userId: user.id,
       },
     });
 
     const assessment = await prisma.assessment.create({
       data: {
-        user: {
-          connect: { id: user.id },
-        },
-        responsibilityLevel: JSON.stringify({
+        userId: user.id,
+        responsibilityLevel: {
           level: responsibilityLevel.level,
           role: responsibilityLevel.role,
           description: responsibilityLevel.description,
-        }),
+        },
       },
     });
 
@@ -109,7 +117,10 @@ export async function POST(request: Request) {
       {
         success: false,
         error: "Internal server error",
-        message: "Failed to process assessment",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to process assessment",
       },
       { status: 500 }
     );

@@ -1,16 +1,16 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { v4 as uuidv4 } from "uuid";
-import { randomBytes } from "crypto";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
 export function generateThreadId(): string {
-  return uuidv4();
+  return Math.random().toString(36).substring(2) + Date.now().toString(36);
 }
 
 export function generateApiKey(): string {
-  return randomBytes(32).toString("hex");
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).substring(2);
+  return `sk_${timestamp}${random}`;
 }

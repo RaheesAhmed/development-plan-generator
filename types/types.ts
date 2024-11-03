@@ -44,3 +44,34 @@ export interface AssessmentResponse {
   };
   area: string;
 }
+
+export interface AssessmentData {
+  responses: any[];
+  completedAt: string;
+  timeSpent: number;
+  status: "pending" | "completed";
+  userInfo: {
+    name: string;
+    email: string;
+    avatar: string;
+  };
+  responsibilityLevel: {
+    role: number;
+    title: string;
+  };
+  assessmentId: string;
+}
+
+export interface DevelopmentPlan {
+  content: string;
+  goals: {
+    title: string;
+    description: string;
+    progress: number;
+  }[];
+  skills: {
+    name: string;
+    level: number;
+    description: string;
+  }[];
+}

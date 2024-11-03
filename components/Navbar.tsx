@@ -3,16 +3,23 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useAuth } from "@/lib/contexts/auth-context";
 
 export default function Navbar() {
   const router = useRouter();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const { user, logout } = useAuth();
 
   const handleLogin = () => {
-    // Here you would typically handle your authentication logic
-    setIsLoggedIn(true);
-    router.push("/dashboard");
+    router.push("/sign-in");
+  };
+
+  const handleSignup = () => {
+    router.push("/sign-up");
+  };
+
+  const handleLogout = () => {
+    logout();
+    router.push("/");
   };
 
   return (
@@ -21,26 +28,29 @@ export default function Navbar() {
         <div className="flex justify-between h-16">
           <div className="flex">
             <Link href="/" className="flex items-center">
-              <span className="text-xl font-bold">Leadership Assessment</span>
+              <span className="text-xl font-bold">CareerPro</span>
             </Link>
           </div>
 
           <div className="flex items-center space-x-4">
-            {!isLoggedIn ? (
+            {!user ? (
               <>
                 <Button variant="ghost" onClick={handleLogin}>
                   Login
                 </Button>
-                <Button onClick={handleLogin}>Sign up</Button>
+                <Button onClick={handleSignup}>Sign up</Button>
               </>
             ) : (
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-muted-foreground">
-                  Welcome,{" "}
-                  <Link href="/dashboard">
-                    <Button variant="ghost">Dashboard</Button>
-                  </Link>
+                  Welcome, {user.name || user.email}
                 </span>
+                <Link href="/dashboard">
+                  <Button variant="ghost">Dashboard</Button>
+                </Link>
+                <Button variant="outline" onClick={handleLogout}>
+                  Logout
+                </Button>
               </div>
             )}
           </div>

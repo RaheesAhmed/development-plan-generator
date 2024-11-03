@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import ReactMarkdown from "react-markdown";
 import html2pdf from "html2pdf.js";
 import {
   Loader2,
@@ -16,10 +15,7 @@ import {
   Home,
   Settings,
   HelpCircle,
-  LogOut,
-  Search,
   Bell,
-  ChevronDown,
   ChevronRight,
   Star,
 } from "lucide-react";
@@ -29,47 +25,9 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
-
-interface AssessmentData {
-  responses: any[];
-  completedAt: string;
-  timeSpent: number;
-  status: "pending" | "completed";
-  userInfo: {
-    name: string;
-    email: string;
-    avatar: string;
-  };
-  responsibilityLevel: {
-    role: number;
-    title: string;
-  };
-}
-
-interface DevelopmentPlan {
-  content: string;
-  goals: {
-    title: string;
-    description: string;
-    progress: number;
-  }[];
-  skills: {
-    name: string;
-    level: number;
-    description: string;
-  }[];
-}
-
+import { Card, CardContent } from "@/components/ui/card";
+import { AssessmentData, DevelopmentPlan } from "@/types/types";
+import { PlanDisplay } from "@/components/PlanDisplay";
 export default function DashboardPage() {
   const [assessmentData, setAssessmentData] = useState<AssessmentData | null>(
     null
@@ -89,6 +47,8 @@ export default function DashboardPage() {
         setAssessmentData(JSON.parse(storedAssessment));
       }
       if (storedPlan) {
+        storedPlan.replace('"', " ");
+        console.log("storedPlan:", storedPlan);
         setDevelopmentPlan({
           content: storedPlan,
           goals: [],
@@ -143,6 +103,277 @@ export default function DashboardPage() {
     }
   };
 
+  const renderContent = () => {
+    switch (activeSection) {
+      case "development-plans":
+        return (
+          <div className="max-w-4xl mx-auto px-6 py-8">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-semibold text-slate-900">
+                  Your Development Plan
+                </h2>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={handleDownload}
+                    disabled={isLoading}
+                    className="text-slate-600 hover:text-slate-900"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4 mr-2" />
+                    )}
+                    Download PDF
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="text-slate-600 hover:text-slate-900"
+                  >
+                    <Share2 className="h-4 w-4 mr-2" />
+                    Share
+                  </Button>
+                </div>
+              </div>
+
+              <div
+                id="development-plan-content"
+                className="prose prose-slate max-w-none
+                  prose-headings:font-semibold 
+                  prose-h1:text-3xl prose-h1:mb-8
+                  prose-h2:text-2xl prose-h2:mt-8 prose-h2:mb-4
+                  prose-p:text-slate-600 prose-p:leading-relaxed
+                  prose-li:text-slate-600
+                  prose-strong:text-slate-900
+                  prose-a:text-indigo-600 prose-a:no-underline hover:prose-a:underline"
+              >
+                {developmentPlan ? (
+                  <PlanDisplay plan={developmentPlan.content} />
+                ) : (
+                  <div className="text-center py-12">
+                    <BrainCircuit className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                    <p className="text-slate-600 mb-4">
+                      No development plan available yet.
+                    </p>
+                    <Link href="/start">
+                      <Button className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                        Complete Assessment
+                      </Button>
+                    </Link>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      default:
+        return (
+          <div className="max-w-7xl mx-auto px-6 py-8">
+            {/* Stats Cards */}
+            <div className="grid gap-6 md:grid-cols-3 mb-8">
+              <div className="bg-white rounded-2xl shadow-sm p-6 border border-slate-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2 bg-green-50 rounded-lg">
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                  </div>
+                  {getStatusBadge(assessmentData.status)}
+                </div>
+                <h3 className="text-sm font-medium text-slate-500">Status</h3>
+                <p className="text-2xl font-semibold text-slate-900 mt-1">
+                  {assessmentData.status === "completed"
+                    ? "Complete"
+                    : "In Progress"}
+                </p>
+              </div>
+
+              <div className="bg-white rounded-2xl shadow-sm p-6 border border-slate-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2 bg-indigo-50 rounded-lg">
+                    <Clock className="h-5 w-5 text-indigo-500" />
+                  </div>
+                  <span className="text-sm text-slate-500">
+                    {new Date(assessmentData.completedAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <h3 className="text-sm font-medium text-slate-500">
+                  Time Invested
+                </h3>
+                <p className="text-2xl font-semibold text-slate-900 mt-1">
+                  {Math.floor(assessmentData.timeSpent / 60)}m
+                </p>
+              </div>
+
+              <div className="bg-white rounded-2xl shadow-sm p-6 border border-slate-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2 bg-purple-50 rounded-lg">
+                    <Target className="h-5 w-5 text-purple-500" />
+                  </div>
+                  <span className="text-sm font-medium text-purple-600 bg-purple-50 px-3 py-1 rounded-full">
+                    Level {assessmentData.responsibilityLevel.role}
+                  </span>
+                </div>
+                <h3 className="text-sm font-medium text-slate-500">
+                  Leadership Level
+                </h3>
+                <p className="text-lg font-medium text-slate-900 mt-1">
+                  {assessmentData.responsibilityLevel.title}
+                </p>
+              </div>
+            </div>
+
+            {/* Tabs Section */}
+            <Tabs defaultValue="overview" className="space-y-6">
+              <TabsList className="bg-slate-100/80 p-1 rounded-xl">
+                <TabsTrigger value="overview" className="rounded-lg">
+                  Overview
+                </TabsTrigger>
+                <TabsTrigger value="development-plan" className="rounded-lg">
+                  Development Plan
+                </TabsTrigger>
+                <TabsTrigger value="detailed-results" className="rounded-lg">
+                  Results
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="overview">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                  <h2 className="text-lg font-semibold text-slate-900 mb-6">
+                    Assessment Overview
+                  </h2>
+
+                  <div className="space-y-6">
+                    {/* Progress Section */}
+                    <div>
+                      <div className="flex justify-between mb-2">
+                        <span className="text-sm font-medium text-slate-600">
+                          Progress
+                        </span>
+                        <span className="text-sm font-medium text-slate-900">
+                          {Math.round(calculateProgress())}%
+                        </span>
+                      </div>
+                      <Progress value={calculateProgress()} className="h-2" />
+                    </div>
+
+                    {/* Strengths and Improvements Grid */}
+                    <div className="grid md:grid-cols-2 gap-8">
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold text-slate-900">
+                          Key Strengths
+                        </h3>
+                        <div className="space-y-3">
+                          {[
+                            "Strategic Thinking",
+                            "Team Leadership",
+                            "Communication",
+                          ].map((strength) => (
+                            <div
+                              key={strength}
+                              className="flex items-center gap-3 bg-green-50 p-3 rounded-lg"
+                            >
+                              <Star className="h-5 w-5 text-green-500" />
+                              <span className="text-slate-700">{strength}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold text-slate-900">
+                          Growth Areas
+                        </h3>
+                        <div className="space-y-3">
+                          {[
+                            "Conflict Resolution",
+                            "Time Management",
+                            "Delegation",
+                          ].map((area) => (
+                            <div
+                              key={area}
+                              className="flex items-center gap-3 bg-indigo-50 p-3 rounded-lg"
+                            >
+                              <ChevronRight className="h-5 w-5 text-indigo-500" />
+                              <span className="text-slate-700">{area}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="development-plan">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-lg font-semibold text-slate-900">
+                      Development Plan
+                    </h2>
+                    <div className="flex gap-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDownload}
+                        disabled={isLoading}
+                        className="text-slate-600 hover:text-slate-900"
+                      >
+                        {isLoading ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4 mr-2" />
+                        )}
+                        Download PDF
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-slate-600 hover:text-slate-900"
+                      >
+                        <Share2 className="h-4 w-4 mr-2" />
+                        Share
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div
+                    id="development-plan-content"
+                    className="prose max-w-none"
+                  >
+                    {developmentPlan ? (
+                      <PlanDisplay plan={developmentPlan.content} />
+                    ) : (
+                      <p className="text-slate-600">
+                        No development plan available yet.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="detailed-results">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                  <h2 className="text-lg font-semibold text-slate-900 mb-6">
+                    Detailed Results
+                  </h2>
+                  {/* Add your detailed results content here */}
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            {/* Action Button */}
+            <div className="mt-8 flex justify-center">
+              <Button
+                className={`${brandColors.primary} ${brandColors.hover} text-white px-8`}
+              >
+                Start Next Assessment
+              </Button>
+            </div>
+          </div>
+        );
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-100">
@@ -174,277 +405,123 @@ export default function DashboardPage() {
       </div>
     );
   }
+  const brandColors = {
+    primary: "bg-indigo-600",
+    secondary: "bg-purple-600",
+    accent: "bg-cyan-500",
+    hover: "hover:bg-indigo-700",
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-slate-50">
+        <div className="p-8 rounded-2xl bg-white shadow-xl">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="h-12 w-12 animate-spin text-indigo-600" />
+            <p className="text-xl font-medium text-slate-700">
+              Loading your insights...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!assessmentData) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-slate-50">
+        <div className="p-8 rounded-2xl bg-white shadow-xl max-w-md w-full">
+          <div className="flex flex-col items-center gap-6 text-center">
+            <div className="p-4 rounded-full bg-indigo-50">
+              <BarChart className="h-8 w-8 text-indigo-600" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900 mb-2">
+                Start Your Leadership Journey
+              </h2>
+              <p className="text-slate-600 mb-6">
+                Complete an assessment to view your personalized dashboard
+              </p>
+              <Link href="/start">
+                <Button
+                  className={`w-full ${brandColors.primary} ${brandColors.hover} text-white`}
+                >
+                  Begin Assessment
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <div className="w-64 bg-white shadow-md">
-        <div className="p-4">
-          <h2 className="text-2xl font-bold text-gray-800">LeaderPulse</h2>
+    <div className="flex h-screen bg-slate-50">
+      {/* Modernized Sidebar */}
+      <div className="w-72 bg-white shadow-lg">
+        <div className="p-6">
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 text-transparent bg-clip-text">
+            LeaderPulse
+          </h2>
         </div>
-        <nav className="mt-8">
+        <nav className="mt-6 px-3">
           {[
-            { icon: Home, label: "Dashboard", value: "dashboard" },
+            { icon: Home, label: "Overview", value: "dashboard" },
             { icon: BarChart, label: "Assessments", value: "assessments" },
             {
               icon: BrainCircuit,
-              label: "Development Plans",
+              label: "Development",
               value: "development-plans",
             },
             { icon: Settings, label: "Settings", value: "settings" },
-            { icon: HelpCircle, label: "Help", value: "help" },
+            { icon: HelpCircle, label: "Support", value: "help" },
           ].map((item) => (
-            <a
+            <button
               key={item.value}
-              href="#"
               onClick={() => setActiveSection(item.value)}
-              className={`flex items-center px-4 py-2 text-gray-700 ${
-                activeSection === item.value
-                  ? "bg-gray-200"
-                  : "hover:bg-gray-200"
-              }`}
+              className={`w-full flex items-center px-4 py-3 mb-2 rounded-xl text-sm font-medium transition-all
+                ${
+                  activeSection === item.value
+                    ? "bg-indigo-50 text-indigo-600"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
             >
               <item.icon className="mr-3 h-5 w-5" />
               {item.label}
-            </a>
+            </button>
           ))}
         </nav>
-        <div className="absolute bottom-0 w-64 p-4">
-          <Button
-            variant="outline"
-            className="w-full flex items-center justify-center"
-          >
-            <LogOut className="mr-2 h-4 w-4" /> Log Out
-          </Button>
-        </div>
+        <div className="absolute bottom-0 w-72 p-6"></div>
       </div>
 
-      {/* Main content */}
+      {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-            <h1 className="text-2xl font-semibold text-gray-900">
-              Your Leadership Journey
+        {/* Modern Header */}
+        <header className="bg-white shadow-sm border-b border-slate-200">
+          <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <h1 className="text-xl font-semibold text-slate-900">
+              Leadership Dashboard
             </h1>
-            <div className="flex items-center space-x-4">
-              <Input type="search" placeholder="Search..." className="w-64" />
-              <Button variant="ghost" size="icon">
+            <div className="flex items-center gap-6">
+              <Button variant="ghost" size="icon" className="text-slate-600">
                 <Bell className="h-5 w-5" />
               </Button>
-              <Avatar>
+              <Avatar className="h-9 w-9">
                 <AvatarImage
                   src={assessmentData.userInfo.avatar}
                   alt={assessmentData.userInfo.name}
                 />
-                <AvatarFallback>
+                <AvatarFallback className="bg-indigo-100 text-indigo-600">
                   {assessmentData.userInfo.name.charAt(0)}
                 </AvatarFallback>
               </Avatar>
             </div>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto bg-gray-100">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <div className="grid gap-6 md:grid-cols-3 mb-8">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    Assessment Status
-                  </CardTitle>
-                  <CheckCircle className="h-4 w-4 text-green-500" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {getStatusBadge(assessmentData.status)}
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    Last updated:{" "}
-                    {new Date(assessmentData.completedAt).toLocaleString()}
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    Time Invested
-                  </CardTitle>
-                  <Clock className="h-4 w-4 text-blue-500" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {Math.floor(assessmentData.timeSpent / 60)} minutes
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    Total assessment duration
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    Leadership Level
-                  </CardTitle>
-                  <Target className="h-4 w-4 text-indigo-500" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    Level {assessmentData.responsibilityLevel.role}
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    {assessmentData.responsibilityLevel.title}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Assessment ID: {assessmentData.assessmentId}
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
 
-            <Tabs defaultValue="overview" className="space-y-4">
-              <TabsList className="bg-white p-1 rounded-lg">
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="development-plan">
-                  Development Plan
-                </TabsTrigger>
-                <TabsTrigger value="detailed-results">
-                  Detailed Results
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="overview">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Assessment Overview</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div>
-                        <div className="flex justify-between mb-2">
-                          <span className="text-sm font-medium">Progress</span>
-                          <span className="text-sm font-medium">
-                            {Math.round(calculateProgress())}%
-                          </span>
-                        </div>
-                        <Progress
-                          value={calculateProgress()}
-                          className="w-full"
-                        />
-                      </div>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div>
-                          <h3 className="text-lg font-semibold mb-2">
-                            Key Strengths
-                          </h3>
-                          <ul className="space-y-1">
-                            {[
-                              "Strategic Thinking",
-                              "Team Leadership",
-                              "Communication Skills",
-                            ].map((strength, index) => (
-                              <li
-                                key={index}
-                                className="flex items-center space-x-2"
-                              >
-                                <Star className="h-4 w-4 text-yellow-400" />
-                                <span>{strength}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-semibold mb-2">
-                            Areas for Improvement
-                          </h3>
-                          <ul className="space-y-1">
-                            {[
-                              "Conflict Resolution",
-                              "Time Management",
-                              "Delegation Skills",
-                            ].map((area, index) => (
-                              <li
-                                key={index}
-                                className="flex items-center space-x-2"
-                              >
-                                <ChevronRight className="h-4 w-4 text-blue-500" />
-                                <span>{area}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-              <TabsContent value="development-plan">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex justify-between items-center">
-                      Your Development Plan
-                      <div className="flex space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleDownload}
-                          disabled={isLoading}
-                        >
-                          {isLoading ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <Download className="h-4 w-4 mr-2" />
-                          )}
-                          Download PDF
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          <Share2 className="h-4 w-4 mr-2" />
-                          Share
-                        </Button>
-                      </div>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {developmentPlan ? (
-                      <div id="development-plan-content" className="space-y-6">
-                        <div className="prose max-w-none">
-                          <MarkdownRenderer content={developmentPlan.content} />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-semibold mb-4">
-                            Development Goals
-                          </h3>
-                          <div className="grid gap-4 md:grid-cols-2"></div>
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-semibold mb-4">
-                            Skill Development
-                          </h3>
-                          <div className="grid gap-4 md:grid-cols-2"></div>
-                        </div>
-                      </div>
-                    ) : (
-                      <p>No development plan available.</p>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-              <TabsContent value="detailed-results">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Detailed Assessment Results</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-6"></div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
-
-            <div className="mt-8 text-center">
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                Start Next Assessment
-              </Button>
-            </div>
-          </div>
-        </main>
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto">{renderContent()}</main>
       </div>
     </div>
   );

@@ -1,18 +1,33 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-const isProtectedRoute = createRouteMatcher(["/dashboard(.*)"]);
-const isPublicRoute = createRouteMatcher(["/", "/sign-in(.*)", "/sign-up(.*)"]);
+export function middleware(request: NextRequest) {
+  const token = request.cookies.get("token")?.value;
 
-export default clerkMiddleware(async (auth, req) => {
-  if (isProtectedRoute(req)) {
-    await auth.protect();
+  // Check if it's an admin route
+  if (request.nextUrl.pathname.startsWith("/admin")) {
+    if (!token) {
+      return NextResponse.redirect(new URL("/sign-in", request.url));
+    }
+
+    try {
+      const tokenData = JSON.parse(atob(token.split(".")[1]));
+      if (tokenData.role !== "admin") {
+        return NextResponse.redirect(new URL("/", request.url));
+      }
+    } catch (error) {
+      return NextResponse.redirect(new URL("/sign-in", request.url));
+    }
   }
-});
+
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: [
-    "/((?!.+\\.[\\w]+$|_next).*)", // Skip static & asset files
-    "/",
-    "/(api|trpc)(.*)",
+    "/admin/:path*",
+    "/dashboard/:path*",
+    "/profile/:path*",
+    "/assessments/:path*",
   ],
 };
