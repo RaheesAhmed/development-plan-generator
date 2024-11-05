@@ -75,3 +75,33 @@ export interface DevelopmentPlan {
     description: string;
   }[];
 }
+
+export interface Question {
+  id: string;
+  question: string;
+  type: string;
+  placeholder?: string;
+  options?: { value: string; label: string }[];
+  additionalInfo?: {
+    question: string;
+    placeholder: string;
+  };
+}
+
+export interface ClassificationResult {
+  responsibilityLevel: number;
+  role: string;
+  description: string;
+  versionInfo: {
+    "v1.0": string;
+    "v2.0": string;
+  };
+  nextStep: string;
+}
+
+export interface ClassificationProps {
+  onComplete: (
+    userInfo: Record<string, string>,
+    classificationResult: ClassificationResult
+  ) => void;
+}

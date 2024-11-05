@@ -1,9 +1,9 @@
 import OpenAI from "openai";
 import { AssessmentResponse } from "@/types/types";
 import { PLAN_INSTRUCTIONS } from "@/prompts/plan_instructions";
-
-export const runtime = "edge";
-export const maxDuration = 1;
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { prisma } from "@/lib/db";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -47,7 +47,16 @@ export async function POST(request: Request) {
       assessmentAnswers,
       assessmentCompleted,
     } = body;
-    console.log("responsibilityLevel", body);
+
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return Response.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const threadId = (await openai.beta.threads.create()).id;
 
     // Create different prompts based on assessment completion
@@ -258,11 +267,21 @@ Generate the development plan following these exact specifications, ensuring all
       const latestMessage = messages.data[0];
 
       if (latestMessage.content[0].type === "text") {
-        const plan = latestMessage.content[0].text.value;
+        const generatedPlan = latestMessage.content[0].text.value;
 
-        // Save the plan to the database
+        // Save to DevelopmentPlan table instead
+        const developmentPlan = await prisma.developmentPlan.create({
+          data: {
+            userId: session.user.id,
+            plan: JSON.parse(generatedPlan), // Parse the plan as JSON since the field is Json type
+          },
+        });
 
-        return Response.json({ success: true, plan });
+        return Response.json({
+          success: true,
+          plan: generatedPlan,
+          developmentPlanId: developmentPlan.id,
+        });
       }
     }
 

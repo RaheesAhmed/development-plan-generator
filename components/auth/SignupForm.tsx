@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAuth } from "@/lib/contexts/auth-context";
+import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import {
   Loader2,
@@ -24,6 +24,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { signIn } from "next-auth/react";
 
 export default function SignupForm() {
   const [formData, setFormData] = useState({
@@ -34,7 +35,7 @@ export default function SignupForm() {
   });
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+
   const router = useRouter();
 
   const validatePassword = (password: string) => {
@@ -84,22 +85,22 @@ export default function SignupForm() {
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Signup failed");
 
-      // Auto-login after signup
-      const loginResponse = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
+      if (!response.ok) {
+        throw new Error(data.error || "Signup failed");
+      }
+
+      // Sign in after successful signup
+      const result = await signIn("credentials", {
+        email: formData.email,
+        password: formData.password,
+        redirect: false,
       });
 
-      const loginData = await loginResponse.json();
-      if (!loginResponse.ok) throw new Error(loginData.error || "Login failed");
+      if (result?.error) {
+        throw new Error(result.error);
+      }
 
-      login(loginData.token, loginData.user);
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -253,7 +254,7 @@ export default function SignupForm() {
             <p className="text-sm text-gray-600 w-full">
               Already have an account?{" "}
               <a
-                href="/sign-in"
+                href="/login"
                 className="font-semibold text-indigo-600 hover:text-indigo-700"
               >
                 Sign in

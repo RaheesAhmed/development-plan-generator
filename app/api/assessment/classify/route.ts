@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { classifyResponsibilityLevel } from "@/lib/classifiers/responsibility-level";
 import { demographicSchema } from "@/lib/validators/demographics";
 import { classifierService } from "@/lib/services/classifier-service";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/db";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 export const maxDuration = 30;
 
@@ -22,6 +22,15 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "Unauthorized - No user ID" },
+        { status: 401 }
+      );
+    }
+
     await classifierService.initialize();
 
     const demographic = await request.json();
@@ -34,71 +43,49 @@ export async function POST(request: Request) {
       );
     }
 
-    const processedInfo = {
-      ...data,
-      directReports: data.directReports.toString(),
-      levelsToCEO: data.levelsToCEO.toString(),
-      companySize: data.companySize.toString(),
-      managesBudget: data.managesBudget.toString(),
-    };
+    const responsibilityLevel = await classifyResponsibilityLevel(data);
 
-    const responsibilityLevel = await classifyResponsibilityLevel(
-      processedInfo
-    );
-
-    const user = await prisma.user.upsert({
-      where: {
-        email: data.email || "anonymous@example.com",
-      },
-      update: {},
-      create: {
-        email: data.email || "anonymous@example.com",
-        name: data.name || "Anonymous",
-        hashedPassword: "temporary-hash",
-      },
-    });
-
-    const savedDemographic = await prisma.demographic.upsert({
-      where: {
-        userId: user.id,
-      },
-      update: {
-        industry: data.industry,
-        companySize: processedInfo.companySize,
-        department: data.department,
-        jobTitle: data.jobTitle,
-        directReports: processedInfo.directReports,
-        decisionLevel: data.decisionLevel,
-        typicalProject: data.typicalProject,
-        levelsToCEO: processedInfo.levelsToCEO,
-        managesBudget: processedInfo.managesBudget,
-      },
-      create: {
-        industry: data.industry,
-        companySize: processedInfo.companySize,
-        department: data.department,
-        jobTitle: data.jobTitle,
-        directReports: processedInfo.directReports,
-        decisionLevel: data.decisionLevel,
-        typicalProject: data.typicalProject,
-        levelsToCEO: processedInfo.levelsToCEO,
-        managesBudget: processedInfo.managesBudget,
-        userId: user.id,
-      },
-    });
-
-    const assessment = await prisma.assessment.create({
-      data: {
-        userId: user.id,
-        responsibilityLevel: {
-          level: responsibilityLevel.level,
-          role: responsibilityLevel.role,
-          description: responsibilityLevel.description,
+    // Create or update demographic and assessment in a transaction
+    const [savedDemographic, assessment] = await prisma.$transaction([
+      prisma.demographic.upsert({
+        where: {
+          userId: session.user.id,
         },
-      },
-    });
-
-    console.log("responsibilityLevel", responsibilityLevel);
+        update: {
+          industry: data.industry,
+          companySize: data.companySize.toString(),
+          department: data.department,
+          jobTitle: data.jobTitle,
+          directReports: data.directReports.toString(),
+          decisionLevel: data.decisionLevel,
+          typicalProject: data.typicalProject,
+          levelsToCEO: data.levelsToCEO.toString(),
+          managesBudget: data.managesBudget.toString(),
+        },
+        create: {
+          userId: session.user.id,
+          industry: data.industry,
+          companySize: data.companySize.toString(),
+          department: data.department,
+          jobTitle: data.jobTitle,
+          directReports: data.directReports.toString(),
+          decisionLevel: data.decisionLevel,
+          typicalProject: data.typicalProject,
+          levelsToCEO: data.levelsToCEO.toString(),
+          managesBudget: data.managesBudget.toString(),
+        },
+      }),
+      prisma.assessment.create({
+        data: {
+          userId: session.user.id,
+          responsibilityLevel: {
+            level: responsibilityLevel.level,
+            role: responsibilityLevel.role,
+            description: responsibilityLevel.description,
+          },
+        },
+      }),
+    ]);
 
     return NextResponse.json({
       success: true,

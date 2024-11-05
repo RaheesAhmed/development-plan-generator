@@ -23,52 +23,16 @@ import {
   type DemographicFormData,
 } from "@/lib/validators/demographics";
 import { z } from "zod";
-
-interface Question {
-  id: string;
-  question: string;
-  type: string;
-  placeholder?: string;
-  options?: { value: string; label: string }[];
-  additionalInfo?: {
-    question: string;
-    placeholder: string;
-  };
-}
-
-interface ClassificationResult {
-  responsibilityLevel: number;
-  role: string;
-  description: string;
-  versionInfo: {
-    "v1.0": string;
-    "v2.0": string;
-  };
-  nextStep: string;
-}
-
-interface ClassificationProps {
-  onComplete: (
-    userInfo: Record<string, string>,
-    classificationResult: ClassificationResult
-  ) => void;
-}
-
-interface ClassificationPayload {
-  name: string;
-  industry: string;
-  companySize: number;
-  department: string;
-  jobTitle: string;
-  directReports: number;
-  reportingRoles: string;
-  decisionLevel: string;
-  typicalProject: string;
-  levelsToCEO: number;
-  managesBudget: boolean;
-}
+import { useSession } from "next-auth/react";
+import {
+  ClassificationProps,
+  Question,
+  ClassificationResult,
+} from "@/types/types";
+import { useAuth } from "@/hooks/useAuth";
 
 const Classification: React.FC<ClassificationProps> = ({ onComplete }) => {
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [userInfo, setUserInfo] = useState<Record<string, string>>({});
@@ -80,6 +44,28 @@ const Classification: React.FC<ClassificationProps> = ({ onComplete }) => {
   const [showOptions, setShowOptions] = useState(false);
   const [showKnowMoreOptions, setShowKnowMoreOptions] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleError = (error: unknown) => {
+    if (error instanceof z.ZodError) {
+      const errorMessages = error.errors
+        .map((err) => `${err.path[0]}: ${err.message}`)
+        .join("\n");
+
+      toast({
+        title: "Please check your inputs",
+        description: errorMessages,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: `Failed to process your information: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+        variant: "destructive",
+      });
+    }
+  };
 
   useEffect(() => {
     const loadQuestions = async () => {
@@ -146,6 +132,16 @@ const Classification: React.FC<ClassificationProps> = ({ onComplete }) => {
 
   const classifyUser = async (formData: Record<string, string>) => {
     try {
+      if (!isAuthenticated) {
+        toast({
+          title: "Session Error",
+          description: "Please sign in to continue",
+          variant: "destructive",
+        });
+        router.push("/login");
+        return null;
+      }
+
       const payload: DemographicFormData = {
         name: formData.name,
         industry: formData.industry,
@@ -159,17 +155,12 @@ const Classification: React.FC<ClassificationProps> = ({ onComplete }) => {
           | "Operational"
           | "Tactical"
           | "Strategic",
-        typicalProject:
-          formData.typicalProject.length < 20
-            ? `${formData.typicalProject} - Additional details needed to meet minimum length requirement`
-            : formData.typicalProject,
+        typicalProject: formData.typicalProject,
         levelsToCEO: parseInt(formData.levelsToCEO) || 0,
         managesBudget: formData.managesBudget === "yes",
       };
 
       const validatedData = demographicSchema.parse(payload);
-
-      console.log("Sending validated payload:", validatedData);
 
       const response = await fetch("/api/assessment/classify", {
         method: "POST",
@@ -177,47 +168,19 @@ const Classification: React.FC<ClassificationProps> = ({ onComplete }) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(validatedData),
+        credentials: "include",
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error("Server error:", errorData);
         throw new Error(errorData.message || "Failed to classify user");
       }
 
-      const data = await response.json();
-      console.log("Classification response:", data);
-
-      if (!data.data || !data.data.responsibilityLevel) {
-        console.error("Unexpected response structure:", data);
-        throw new Error("Invalid response structure");
-      }
-
-      return data.data;
+      const { data } = await response.json();
+      return data;
     } catch (error) {
       console.error("Error classifying user:", error);
-      if (error instanceof z.ZodError) {
-        const errorMessages = error.errors
-          .map((err) => {
-            const field = err.path[0];
-            return `${field}: ${err.message}`;
-          })
-          .join("\n");
-
-        toast({
-          title: "Please check your inputs",
-          description: errorMessages,
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: `Failed to process your information: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`,
-          variant: "destructive",
-        });
-      }
+      handleError(error);
       return null;
     }
   };
@@ -455,12 +418,18 @@ const Classification: React.FC<ClassificationProps> = ({ onComplete }) => {
 
   const currentQuestion = questions[currentStep];
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-xl">Loading questions...</div>
+      <div className="min-h-screen  flex items-center justify-center">
+        <div className="text-xl">Loading...</div>
       </div>
     );
+  }
+
+  if (!isAuthenticated) {
+    console.log("User is not authenticated");
+    router.push("/login");
+    return null;
   }
 
   const renderOptions = () => (
@@ -510,7 +479,7 @@ const Classification: React.FC<ClassificationProps> = ({ onComplete }) => {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen  flex items-center justify-center p-4">
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden">
         <div className="bg-blue-600 p-6 text-white">
           <h1 className="text-3xl font-bold">Demographic Information</h1>

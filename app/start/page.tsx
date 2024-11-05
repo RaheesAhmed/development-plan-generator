@@ -7,10 +7,10 @@ import LevelOneQuestions from "@/components/LevelOneQuestions";
 import LevelTwoQuestions from "@/components/levelTwoQuestions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Loader2, CheckIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "@/hooks/use-toast";
-import { CheckIcon } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface UserInfo {
   name: string;
@@ -51,6 +51,7 @@ interface AssessmentResponse {
 }
 
 export default function AssessmentFlow() {
+  const { isAuthenticated, isLoading } = useAuth();
   const [step, setStep] = useState<
     "intro" | "classification" | "levelOne" | "levelTwo" | "complete"
   >("intro");
@@ -67,6 +68,18 @@ export default function AssessmentFlow() {
   const [confidenceRating, setConfidenceRating] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null; // Middleware will handle redirect
+  }
 
   const handleClassificationComplete = async (
     info: UserInfo,
@@ -147,7 +160,7 @@ export default function AssessmentFlow() {
     switch (step) {
       case "intro":
         return (
-          <Card className="w-full max-w-3xl shadow-xl">
+          <Card className="w-full max-w-4xl shadow-xl">
             <CardHeader className="bg-gradient-to-r from-indigo-600 to-blue-500 text-white rounded-t-xl">
               <CardTitle className="text-3xl font-bold text-center">
                 Leadership Capability Assessment
@@ -252,7 +265,7 @@ export default function AssessmentFlow() {
         ) : null;
       case "complete":
         return (
-          <Card className="w-full max-w-3xl shadow-xl">
+          <Card className="w-full max-w-4xl shadow-xl">
             <CardHeader className="bg-gradient-to-r from-emerald-600 to-teal-500 text-white rounded-t-xl">
               <CardTitle className="text-3xl font-bold text-center">
                 Assessment Complete
@@ -306,6 +319,7 @@ export default function AssessmentFlow() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
           transition={{ duration: 0.3 }}
+          className="w-full max-w-4xl" // Added to ensure consistent width
         >
           {renderStep()}
         </motion.div>

@@ -1,57 +1,52 @@
+import { prisma } from "@/lib/db";
+import bcrypt from "bcrypt";
 import { NextResponse } from "next/server";
-import { hash } from "bcrypt";
-import { prisma } from "@/lib/services/db-service";
-import { z } from "zod";
-
-const userSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-  name: z.string().optional(),
-});
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { error, data } = userSchema.safeParse(body);
+    const { email, password, name } = body;
 
-    if (error) {
+    if (!email || !password || !name) {
       return NextResponse.json(
-        { error: "Invalid input data", details: error.errors },
+        { error: "Missing required fields" },
         { status: 400 }
       );
     }
 
     const existingUser = await prisma.user.findUnique({
-      where: { email: data.email },
+      where: { email },
     });
 
     if (existingUser) {
       return NextResponse.json(
-        { error: "User already exists" },
+        { error: "Email already exists" },
         { status: 400 }
       );
     }
 
-    const hashedPassword = await hash(data.password, 10);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     const user = await prisma.user.create({
       data: {
-        email: data.email,
+        email,
+        name,
         hashedPassword,
-        name: data.name,
       },
     });
 
-    const { hashedPassword: _, ...userWithoutPassword } = user;
-
     return NextResponse.json({
-      success: true,
-      user: userWithoutPassword,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        image: user.image,
+      },
     });
   } catch (error) {
-    console.error("Signup error:", error);
+    console.error("[SIGNUP_ERROR]", error);
     return NextResponse.json(
-      { error: "Failed to create user" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

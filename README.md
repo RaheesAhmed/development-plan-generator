@@ -1,247 +1,209 @@
-DataBase Steup:
+# Leadership Development Plan Generator
+
+A comprehensive platform for generating personalized leadership development plans using AI-powered assessments and analysis.
+
+## 🚀 Features
+
+- AI-powered leadership assessment
+- Personalized development plan generation
+- Multi-rater feedback system
+- Role-based responsibility classification
+- Interactive assessment interface
+- Administrative dashboard
+- Consultant profile management
+- Subscription management
+
+## 🛠️ Technical Stack
+
+- **Frontend**: Next.js
+- **Backend**: Node.js with Next.js API Routes
+- **Database**: Prisma ORM
+- **AI Integration**: OpenAI GPT-4
+- **Authentication**: NextAuth.js
+- **Styling**: Tailwind CSS
+
+## 📋 Prerequisites
+
+- Node.js (v16 or higher)
+- npm/yarn
+- PostgreSQL database
+- OpenAI API key
+- Next.js 13+
+
+## 🔧 Installation
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/RaheesAhmed/development-plan-generator.git
+```
+
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Set up environment variables:
+
+```env
+JWT_SECRET=
+NEXTAUTH_SECRET=
+NEXTAUTH_URL=
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
+CLERK_SECRET_KEY=
+NODE_ENV=
+JWT_SECRET=
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+OPENAI_API_KEY=
+OPENAI_ASSISTANT_ID=
+OPENAI_VECTOR_STORE_ID=
+DATABASE_URL=
+DIRECT_URL=
+DB_PASSWORD=
+POSTGRES_PRISMA_URL=
+POSTGRES_URL_NON_POOLING=
+DEBUG=
+STRIPE_PUBLISHABLE_KEY=
+STRIPE_SECRET_KEY=
+MONGO_URI=
+```
+
+## 🗄️ Database Setup
+
+1. Initialize Prisma:
+
+```bash
 npx prisma init
+```
+
+2. Generate Prisma client:
+
+```bash
 npx prisma generate
+```
+
+3. Push database schema:
+
+```bash
 npx prisma db push
+```
+
+4. Run migrations:
+
+```bash
 npx prisma migrate dev
-
-# First verify the database connection
-
-npm run verify-db
-
-# If that works, then run the full setup
-
-npm run db:setup
-
-# API Routes
-
-## /api/assessment/classify
-
-This route is used to classify the responsibility level of an employee based on their demographics.
-
-```
-POST /api/assessment/classify
 ```
 
-Request Body:
+## 🔐 Authentication Setup
 
-```
-{
-  "name": "Rahees Ahmed",
-    "industry": "IT",
-    "companySize": "600",
-    "department": "Finance",
-    "jobTitle": "Financial Analyst",
-    "directReports": "5",
-    "decisionLevel": "Strategic",
-    "typicalProject": "I develop IT security policies that align with company-wide risk management strategies and coordinate with the legal and tech departments to implement them.",
-    "levelsToCEO": "2",
-    "managesBudget": true
-}
+Generate a secure NEXTAUTH_SECRET using one of these methods:
+
+1. Using OpenSSL:
+
+```bash
+openssl rand -base64 32
 ```
 
-Response:
+2. Using Node.js:
 
-```
-{
-  "success": true,
-  "data": {
-    "assessmentId": "393dd2f1-7f34-43bc-8b28-8bad234d6c12",
-    "responsibilityLevel": "Senior Director",
-    "demographics": {
-      "name": "Rahees Ahmed",
-      "industry": "IT",
-      "jobTitle": "Financial Analyst",
-      "department": "Finance",
-      "companySize": 600,
-      "decisionLevel": "Strategic",
-      "directReports": 5,
-      "reportingRoles": [],
-      "typicalProject": "I develop IT security policies that align with company-wide risk management strategies and coordinate with the legal and tech departments to implement them.",
-      "levelsToExecutive": 2,
-      "budgetResponsibility": {
-        "manages": true
-      }
-    },
-    "nextStep": "background"
-  }
-}
+```bash
+node -e "console.log(crypto.randomBytes(32).toString('hex'))"
 ```
 
-## Chat Route
+3. Browser console (development only):
 
-Chat route is used to chat with the assistant.
-
-```
-POST /api/chat
+```javascript
+crypto.randomBytes(32).toString("hex");
 ```
 
-Request Body:
+## 🌐 API Routes
+
+### Assessment Routes
+
+#### `/api/assessment/classify`
+
+- **Method**: POST
+- **Purpose**: Classify employee responsibility level
+- **Request Body Example**:
 
 ```json
 {
-  "query": "What you can do for me?"
+  "name": "John Doe",
+  "industry": "IT",
+  "companySize": "600",
+  "department": "Finance",
+  "jobTitle": "Financial Analyst",
+  "directReports": "5",
+  "decisionLevel": "Strategic",
+  "typicalProject": "Project description",
+  "levelsToCEO": "2",
+  "managesBudget": true
 }
 ```
 
-## api/assessment/about
+#### `/api/assessment/questions`
 
-This route is used to get the about questions.
+- **Method**: GET
+- **Purpose**: Retrieve assessment questions
 
-```
-GET /api/assessment/about
-```
+#### `/api/assessment/questions/[level]`
 
-## api/assessment/about/[level]
+- **Method**: GET
+- **Purpose**: Get level-specific questions
 
-This route is used to get the about questions for a given level.
+### Administrative Routes
 
-```
-GET /api/assessment/about/[level]
-```
+#### `/api/admin/users`
 
-## api/assessment/questions
+- **Method**: GET
+- **Purpose**: Retrieve all users (admin only)
 
-This route is used to get the questions for the assessment.
+#### `/api/admin/consultants`
 
-```
-GET /api/assessment/questions
-```
+- **Method**: GET
+- **Purpose**: Manage consultant profiles
 
-## api/assessment/questions/[level]
+#### `/api/admin/subscriptions`
 
-This route is used to get the questions for the assessment for a given level.
+- **Method**: GET
+- **Purpose**: Manage user subscriptions
 
-```
-GET /api/assessment/questions/[level]
-```
+### Development Plan Routes
 
-## api/assessment/demographic-questions
+#### `/api/development-plan/recommendations`
 
-This route is used to get the demographic questions.
+- **Method**: POST
+- **Purpose**: Generate development recommendations
 
-```
-GET /api/assessment/demographic-questions
-```
+## 👥 User Roles
 
-Example Response:
+- **Admin**: Full system access
+- **Consultant**: Client management and plan generation
+- **User**: Assessment and plan viewing
 
-```json
-{
-  "demographicQuestions": [
-    {
-      "id": "name",
-      "question": "Please enter what name you’d like to use in your report.",
-      "type": "text",
-      "placeholder": "Short Answer"
-    },
-    {
-      "id": "industry",
-      "question": "Please specify the industry your organization operates within.",
-      "type": "text",
-      "placeholder": "Healthcare, Technology, Manufacturing, or Education"
-    },
-    {
-      "id": "companySize",
-      "question": "Please enter the total number of employees in your entire organization.",
-      "type": "number",
-      "placeholder": "500"
-    },
-    {
-      "id": "department",
-      "question": "Please specify your primary department or division. For those with broader responsibilities, such as overseeing multiple areas or the entire organization, indicate the most encompassing area.",
-      "type": "text",
-      "placeholder": "Finance, Western Region Operations, or Company-wide"
-    },
-    {
-      "id": "jobTitle",
-      "question": "Please enter the exact title as used in your workplace.",
-      "type": "text",
-      "placeholder": "Enter your exact job title"
-    },
-    {
-      "id": "directReports",
-      "question": "How many people report directly to you?",
-      "type": "number",
-      "placeholder": "0"
-    },
-    {
-      "id": "directReportRoles",
-      "question": "What types of roles report directly to you? Please list them. If none, please state 'None'.",
-      "type": "text",
-      "placeholder": "Manager of Engineering, Sales Coordinator"
-    },
-    {
-      "id": "decisionLevel",
-      "question": "What level of decisions do you primarily make? (Please select the most appropriate option)",
-      "type": "select",
-      "options": [
-        {
-          "value": "operational",
-          "label": "Operational (day-to-day decisions within your specific role, like processing invoices, responding to customer queries, or maintaining records)"
-        },
-        {
-          "value": "tactical",
-          "label": "Tactical (medium-term decisions affecting your team or department, such as improving workflow efficiency or determining project timelines)"
-        },
-        {
-          "value": "strategic",
-          "label": "Strategic (long-term decisions that shape major aspects of the organization, such as developing new company-wide programs, setting overarching business strategies, or leading major organizational changes)"
-        }
-      ]
-    },
-    {
-      "id": "typicalProject",
-      "question": "Describe a typical project or task you are responsible for. Please include details about what the task involves, any teams or departments you interact with, and its impact on your organization.",
-      "type": "textarea",
-      "placeholder": "I develop IT security policies that align with company-wide risk management strategies and coordinate with the legal and tech departments to implement them."
-    },
-    {
-      "id": "levelsToCEO",
-      "question": "How many levels are there between you and the highest-ranking executive in your organization?",
-      "type": "number",
-      "placeholder": "3"
-    },
-    {
-      "id": "managesBudget",
-      "question": "Does your role require you to manage a budget? If so, is it for your department or across multiple departments?",
-      "type": "boolean",
-      "additionalInfo": {
-        "type": "text",
-        "question": "If Yes, please specify whether it is for your department only or if it spans multiple departments. Example: 'Yes, I manage the budget for the entire marketing department.'",
-        "placeholder": "Yes, I manage the budget for the entire marketing department."
-      }
-    }
-  ]
-}
-```
+## 🔄 Development Workflow
 
-## api/development-plan/recommendations
+1. Create feature branch
+2. Implement changes
+3. Run tests
+4. Submit pull request
+5. Code review
+6. Merge to main
 
-This route is used to get the recommendations for the development plan.
+## 📝 License
 
-Request Body:
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-```json
-{
-  "name": "Mike Johnson",
-  "currentLevel": "L5",
-  "targetLevel": "L7",
-  "roleDetails": "Senior Manager",
-  "industry": "Finance",
-  "yearsExperience": 12,
-  "currentRoleDescription": "Senior Manager of Investment Banking Division",
-  "targetRoleDescription": "Senior Director of Global Operations",
-  "focusAreas": ["Strategic Leadership", "Managing the Business"],
-  "timeline": 36,
-  "competencyRatings": {
-    "Building a Team": 4,
-    "Developing Others": 4,
-    "Leading a Team to Get Results": 4,
-    "Managing Performance": 4,
-    "Managing the Business": 3,
-    "Personal Development": 4,
-    "Communicating as a Leader": 3,
-    "Creating the Environment": 4
-  }
-}
-```
+## 🤝 Contributing
+
+Contributions are welcome! Please read our contributing guidelines before submitting pull requests.
+
+## 📞 Support
+
+For support, email raheesahmed256@gmail.com or create an issue in the repository.
+
+---
+
+Built with ❤️ by the Leadership Development Team
