@@ -1,3 +1,8 @@
+```
+git clone https://github.com/RaheesAhmed/development-plan-generator.git
+
+```
+
 # Generate a secure NEXTAUTH_SECRET
 
 'Generate a secure NEXTAUTH_SECRET for your Next.js application. There are a few ways to do this:
