@@ -77,10 +77,6 @@ export default function AssessmentFlow() {
     );
   }
 
-  if (!isAuthenticated) {
-    return null; // Middleware will handle redirect
-  }
-
   const handleClassificationComplete = async (
     info: UserInfo,
     result: ClassificationResult
