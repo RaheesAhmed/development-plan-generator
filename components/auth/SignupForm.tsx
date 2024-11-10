@@ -72,6 +72,7 @@ export default function SignupForm() {
 
     setError("");
     setIsLoading(true);
+    setError(null);
 
     try {
       const response = await fetch("/api/auth/signup", {
@@ -84,13 +85,12 @@ export default function SignupForm() {
         }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.error || "Signup failed");
+        const data = await response.json();
+        throw new Error(data.error || "Failed to create account");
       }
 
-      // Sign in after successful signup
+      // Sign in the user after successful registration
       const result = await signIn("credentials", {
         email: formData.email,
         password: formData.password,
@@ -98,12 +98,14 @@ export default function SignupForm() {
       });
 
       if (result?.error) {
-        throw new Error(result.error);
+        setError(result.error);
+        return;
       }
 
+      // Redirect to dashboard after successful signup and signin
       router.push("/dashboard");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+    } catch (error) {
+      setError(error.message);
     } finally {
       setIsLoading(false);
     }
