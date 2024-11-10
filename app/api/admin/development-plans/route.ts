@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db/prisma";
-import { adminAuthMiddleware } from "@/lib/auth/adminMiddleware";
+import { prisma } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
-  const authError = await adminAuthMiddleware(req);
-  if (authError) return authError;
-
   const searchParams = req.nextUrl.searchParams;
   const userId = searchParams.get("userId");
 
