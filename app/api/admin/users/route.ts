@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db/prisma";
-import { adminAuthMiddleware } from "@/lib/auth/adminMiddleware";
+import { prisma } from "@/lib/db";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 export async function GET(req: NextRequest) {
   // Temporarily comment out auth for testing
-  // const authError = await adminAuthMiddleware(req);
+  // const authError = await getServerSession(authOptions);
   // if (authError) return authError;
 
   try {
@@ -32,7 +33,6 @@ export async function GET(req: NextRequest) {
         developmentPlans: {
           select: {
             id: true,
-            formattedPlan: true,
           },
         },
         subscription: {
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error("Error fetching users:", error); // Add this for debugging
     return NextResponse.json(
-      { error: "Internal Server Error", details: error.message },
+      { error: "Internal Server Error", details: error },
       { status: 500 }
     );
   }

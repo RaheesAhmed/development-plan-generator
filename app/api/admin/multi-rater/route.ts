@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db/prisma";
-import { adminAuthMiddleware } from "@/lib/auth/adminMiddleware";
+import { prisma } from "@/lib/db";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 export async function GET(req: NextRequest) {
-  const authError = await adminAuthMiddleware(req);
+  const authError = await getServerSession(authOptions);
   if (authError) return authError;
 
   try {
