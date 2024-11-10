@@ -7,7 +7,5 @@ if (!clerkPublishableKey) {
 
 export const clerkConfig = {
   publishableKey: clerkPublishableKey,
-  appearance: {
-    // Add any custom appearance options here
-  },
+  appearance: {},
 };

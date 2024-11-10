@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/db/prisma";
+import { adminAuthMiddleware } from "@/lib/auth/adminMiddleware";
 
 export async function GET(req: NextRequest) {
   // Temporarily comment out auth for testing
@@ -55,7 +56,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error("Error fetching users:", error); // Add this for debugging
     return NextResponse.json(
-      { error: "Internal Server Error", details: error },
+      { error: "Internal Server Error", details: error.message },
       { status: 500 }
     );
   }

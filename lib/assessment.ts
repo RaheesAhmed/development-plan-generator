@@ -5,7 +5,7 @@ import {
 import { classifyResponsibilityLevel } from "@/lib/classifiers/responsibility-level";
 
 // Initialize assessment state
-export const initializeAssessment = (responsibilityLevel) => {
+export const initializeAssessment = (responsibilityLevel: any) => {
   return {
     userLevel: responsibilityLevel.level,
     currentCapability: 0,
@@ -26,7 +26,7 @@ export const initializeAssessment = (responsibilityLevel) => {
 };
 
 // Get the next question based on current state
-export const getNextQuestion = async (assessmentState) => {
+export const getNextQuestion = async (assessmentState: any) => {
   const { userLevel, currentCapability, capabilities } = assessmentState;
 
   if (currentCapability >= capabilities.length) {
@@ -53,7 +53,7 @@ export const getNextQuestion = async (assessmentState) => {
 };
 
 // Handle response and determine next steps
-export const handleResponse = async (assessmentState, response) => {
+export const handleResponse = async (assessmentState: any, response: any) => {
   const { capability, answers, wantsDeeperDive } = response;
 
   // Store the response
@@ -86,7 +86,7 @@ export const handleResponse = async (assessmentState, response) => {
 };
 
 // Start the assessment process
-export const startAssessment = async (demographicResponses) => {
+export const startAssessment = async (demographicResponses: any) => {
   try {
     // Classify responsibility level
     const level = await classifyResponsibilityLevel(demographicResponses);
@@ -111,7 +111,7 @@ export const startAssessment = async (demographicResponses) => {
 };
 
 // Process a response and get next question
-export const processResponse = async (assessmentState, response) => {
+export const processResponse = async (assessmentState: any, response: any) => {
   try {
     const nextQuestion = await handleResponse(assessmentState, response);
 

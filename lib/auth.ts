@@ -40,6 +40,9 @@ export const authOptions: NextAuthOptions = {
         }
 
         // Add your password verification logic here
+        if (user.hashedPassword !== credentials.password) {
+          return null;
+        }
 
         return {
           id: user.id,
